@@ -23,10 +23,15 @@ pub struct QueueFamilyIndices {
 
 pub struct VulkanObjects {
     pub entry: Entry,
+
     pub instance: Instance,
     pub physical_device: PhysicalDevice,
     pub device: Device,
+
     pub queue_family_indices: QueueFamilyIndices,
+    pub graphics_queue: vk::Queue,
+    pub compute_queue: vk::Queue,
+    pub present_queue: vk::Queue,
 }
 
 impl Drop for VulkanObjects {
@@ -109,6 +114,8 @@ pub fn vulkan_initialize(config: &VulkanConfig) -> VulkanObjects {
         layers.push(validation_layer_name.as_ptr());
     }
 
+    println!("Validation Layers: {} ", config.enable_validation_layers);
+
     let mut create_info = vk::InstanceCreateInfo {
         p_application_info: &application_info,
         enabled_layer_count: layers.len() as u32,
@@ -189,6 +196,8 @@ pub fn vulkan_initialize(config: &VulkanConfig) -> VulkanObjects {
 
     if !has_ray_query {
         println!("VK_KHR_ray_query not supported");
+    } else {
+        println!("VK_KHR_ray_query supported");
     }
 
     if has_ray_query {
@@ -238,11 +247,22 @@ pub fn vulkan_initialize(config: &VulkanConfig) -> VulkanObjects {
             .unwrap()
     };
 
+    let graphics_queue = unsafe { device.get_device_queue(queue_family_indices.graphics, 0) };
+    let compute_queue = unsafe { device.get_device_queue(queue_family_indices.compute, 0) };
+    let present_queue = unsafe { device.get_device_queue(queue_family_indices.present, 0) };
+
+    if config.enable_window {
+        // create_swapchain();
+    }
+
     return VulkanObjects {
         entry,
         instance,
         physical_device,
         device,
         queue_family_indices,
+        graphics_queue,
+        compute_queue,
+        present_queue,
     };
 }

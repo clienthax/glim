@@ -3,5 +3,10 @@ name = "stilb_rs"
 version = "0.1.0"
 edition = "2024"
 
+[lib]
+crate-type = ["cdylib", "rlib"]
+
 [dependencies]
-ash = "0.38.0"
+glfw = { version = "0.59", default-features = false, features = ["vulkan", "raw-window-handle-v0-6"] }
+ash = "0.38"
+ash-window = "0.13"
