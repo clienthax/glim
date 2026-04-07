@@ -35,6 +35,8 @@ pub struct VulkanObjects {
 
     pub graphics_command_pool: vk::CommandPool,
     pub compute_command_pool: vk::CommandPool,
+
+    pub descriptor_pool: vk::DescriptorPool,
 }
 
 pub extern "system" fn vulkan_debug_callback(
@@ -259,6 +261,38 @@ pub fn create_vulkan_objects(config: &VulkanConfig) -> VulkanObjects {
     };
     let compute_command_pool = unsafe { device.create_command_pool(&pool_info, None) }.unwrap();
 
+    let mut pool_sizes = Vec::new();
+    let storage_image_pool = vk::DescriptorPoolSize {
+        descriptor_count: 3,
+        ty: vk::DescriptorType::STORAGE_IMAGE,
+    };
+    let sampled_image_pool = vk::DescriptorPoolSize {
+        descriptor_count: 2,
+        ty: vk::DescriptorType::SAMPLED_IMAGE,
+    };
+    let storage_buffer_pool = vk::DescriptorPoolSize {
+        descriptor_count: 5,
+        ty: vk::DescriptorType::STORAGE_BUFFER,
+    };
+    let as_structure_pool = vk::DescriptorPoolSize {
+        descriptor_count: 1,
+        ty: vk::DescriptorType::ACCELERATION_STRUCTURE_KHR,
+    };
+
+    pool_sizes.push(storage_image_pool);
+    pool_sizes.push(sampled_image_pool);
+    pool_sizes.push(storage_buffer_pool);
+    if has_ray_query {
+        pool_sizes.push(as_structure_pool);
+    }
+
+    let descriptor_pool_info = vk::DescriptorPoolCreateInfo::default()
+        .pool_sizes(&mut pool_sizes)
+        .max_sets(1);
+
+    let descriptor_pool =
+        unsafe { device.create_descriptor_pool(&descriptor_pool_info, None) }.unwrap();
+
     return VulkanObjects {
         entry,
         instance,
@@ -270,6 +304,7 @@ pub fn create_vulkan_objects(config: &VulkanConfig) -> VulkanObjects {
         present_queue,
         graphics_command_pool,
         compute_command_pool,
+        descriptor_pool,
     };
 }
 
@@ -282,6 +317,8 @@ impl Drop for VulkanObjects {
             device
                 .device_wait_idle()
                 .expect("Failed to wait for device idle");
+
+            device.destroy_descriptor_pool(self.descriptor_pool, None);
 
             device.destroy_command_pool(self.graphics_command_pool, None);
             device.destroy_command_pool(self.compute_command_pool, None);
