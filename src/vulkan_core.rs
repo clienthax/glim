@@ -4,12 +4,13 @@ use ash::{
 };
 use std::{
     collections::HashSet,
-    ffi::{CStr, CString},
+    ffi::{CStr, CString, c_char},
 };
 
 pub struct VulkanConfig {
     pub enable_validation_layers: bool,
     pub enable_window: bool,
+    pub window_extensions: Vec<*const c_char>,
     pub width: u32,
     pub height: u32,
 }
@@ -87,8 +88,8 @@ fn find_queue_families(instance: &Instance, physical_device: PhysicalDevice) -> 
 }
 
 pub fn create_vulkan_objects(config: &VulkanConfig) -> VulkanObjects {
-    let app_name = CString::new("stilb").unwrap();
-    let validation_layer_name = CString::new("VK_LAYER_KHRONOS_validation").unwrap();
+    let app_name = c"stilb";
+    let validation_layer_name = c"VK_LAYER_KHRONOS_validation";
 
     let application_info = vk::ApplicationInfo {
         p_application_name: app_name.as_ptr(),
@@ -104,6 +105,12 @@ pub fn create_vulkan_objects(config: &VulkanConfig) -> VulkanObjects {
     if config.enable_validation_layers {
         extensions.push(vk::EXT_DEBUG_UTILS_NAME.as_ptr());
         layers.push(validation_layer_name.as_ptr());
+    }
+
+    for ext in &config.window_extensions {
+        extensions.push(*ext);
+        // let str = unsafe { CStr::from_ptr(*ext) };
+        // println!("Adding: {:?}", str);
     }
 
     println!("Validation Layers: {} ", config.enable_validation_layers);
@@ -133,6 +140,8 @@ pub fn create_vulkan_objects(config: &VulkanConfig) -> VulkanObjects {
 
     let entry = unsafe { ash::Entry::load().unwrap() };
     let instance = unsafe { entry.create_instance(&create_info, None).unwrap() };
+
+    if config.enable_window {}
 
     let physical_devices = unsafe { instance.enumerate_physical_devices().unwrap() };
     for physical_device in &physical_devices {

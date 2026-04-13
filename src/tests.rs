@@ -8,7 +8,7 @@ mod tests {
     #[test]
     fn test_initialize() {
         let config = StilbConfig {
-            is_preview: 0,
+            is_preview: 1,
             preview_width: 512,
             preview_height: 512,
         };
