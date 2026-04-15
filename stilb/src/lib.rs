@@ -17,7 +17,7 @@ use glfw_sys::{
 
 use crate::{
     math::{Vector2, Vector3},
-    vulkan_core::{VulkanConfig, VulkanObjects, create_vulkan_objects},
+    vulkan_core::{VulkanConfig, VulkanContext, create_vulkan_objects},
 };
 
 // mod bvh;
@@ -27,7 +27,7 @@ mod vulkan_cmd;
 mod vulkan_core;
 
 pub struct Stilb {
-    pub vk: VulkanObjects,
+    pub vk: VulkanContext,
     pub meshes: Vec<Mesh>,
     pub window: *mut GLFWwindow,
 }
@@ -167,18 +167,14 @@ pub extern "C" fn initialize(config: StilbConfig) -> *mut Stilb {
         }
     }
 
-    let create_surface = |instance: &ash::Instance| unsafe {
-        let mut surface: u64 = 0;
-        glfwCreateWindowSurface(
-            instance.handle().as_raw() as _,
-            window,
-            std::ptr::null(),
-            &mut surface as *mut u64 as _,
-        );
-        vk::SurfaceKHR::from_raw(surface)
+    let create_surface_callback = |instance: &ash::Instance| unsafe {
+        let instance = instance.handle().as_raw() as glfw_sys::VkInstance;
+        let mut surface: glfw_sys::VkSurfaceKHR = ptr::null_mut();
+        glfwCreateWindowSurface(instance, window, std::ptr::null(), &mut surface);
+        ash::vk::SurfaceKHR::from_raw(surface as u64)
     };
 
-    let vk = create_vulkan_objects(&vulkan_config);
+    let vk = create_vulkan_objects(&vulkan_config, create_surface_callback);
     println!("Vulkan Initialized");
 
     let stilb = Stilb {

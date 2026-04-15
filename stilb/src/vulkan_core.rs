@@ -1,10 +1,13 @@
 use ash::{
-    Device, Entry, Instance,
-    vk::{self, DebugUtilsMessageSeverityFlagsEXT, DebugUtilsMessageTypeFlagsEXT, PhysicalDevice},
+    Device, Entry, Instance, khr,
+    vk::{
+        self, DebugUtilsMessageSeverityFlagsEXT, DebugUtilsMessageTypeFlagsEXT, PhysicalDevice,
+        SurfaceKHR,
+    },
 };
 use std::{
     collections::HashSet,
-    ffi::{CStr, CString, c_char},
+    ffi::{CStr, c_char},
 };
 
 pub struct VulkanConfig {
@@ -22,12 +25,15 @@ pub struct QueueFamilyIndices {
     pub present: u32,
 }
 
-pub struct VulkanObjects {
+pub struct VulkanContext {
     pub entry: Entry,
 
     pub instance: Instance,
     pub physical_device: PhysicalDevice,
     pub device: Device,
+
+    pub surface_instance: khr::surface::Instance,
+    pub surface: vk::SurfaceKHR,
 
     pub queue_family_indices: QueueFamilyIndices,
     pub graphics_queue: vk::Queue,
@@ -87,7 +93,12 @@ fn find_queue_families(instance: &Instance, physical_device: PhysicalDevice) -> 
     }
 }
 
-pub fn create_vulkan_objects(config: &VulkanConfig) -> VulkanObjects {
+pub fn create_vulkan_objects(
+    config: &VulkanConfig,
+    create_surface_callback: impl Fn(&Instance) -> SurfaceKHR,
+) -> VulkanContext {
+    let entry = ash::Entry::linked();
+
     let app_name = c"stilb";
     let validation_layer_name = c"VK_LAYER_KHRONOS_validation";
 
@@ -138,10 +149,16 @@ pub fn create_vulkan_objects(config: &VulkanConfig) -> VulkanObjects {
         create_info = create_info.push_next(&mut debug_create_info);
     }
 
-    let entry = unsafe { ash::Entry::load().unwrap() };
     let instance = unsafe { entry.create_instance(&create_info, None).unwrap() };
 
-    if config.enable_window {}
+    let surface_instance = ash::khr::surface::Instance::new(&entry, &instance);
+
+    let surface;
+    if config.enable_window {
+        surface = create_surface_callback(&instance);
+    } else {
+        surface = SurfaceKHR::null();
+    }
 
     let physical_devices = unsafe { instance.enumerate_physical_devices().unwrap() };
     for physical_device in &physical_devices {
@@ -304,7 +321,7 @@ pub fn create_vulkan_objects(config: &VulkanConfig) -> VulkanObjects {
 
     // todo: semaphores and fences
 
-    return VulkanObjects {
+    return VulkanContext {
         entry,
         instance,
         physical_device,
@@ -316,10 +333,12 @@ pub fn create_vulkan_objects(config: &VulkanConfig) -> VulkanObjects {
         graphics_command_pool,
         compute_command_pool,
         descriptor_pool,
+        surface,
+        surface_instance,
     };
 }
 
-impl Drop for VulkanObjects {
+impl Drop for VulkanContext {
     fn drop(&mut self) {
         unsafe {
             let device = &self.device;
@@ -333,6 +352,8 @@ impl Drop for VulkanObjects {
 
             device.destroy_command_pool(self.graphics_command_pool, None);
             device.destroy_command_pool(self.compute_command_pool, None);
+
+            self.surface_instance.destroy_surface(self.surface, None);
 
             device.destroy_device(None);
 

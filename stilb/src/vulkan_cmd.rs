@@ -1,8 +1,8 @@
 use ash::vk;
 
-use crate::vulkan_core::VulkanObjects;
+use crate::vulkan_core::VulkanContext;
 
-pub fn begin_temp_graphics_cmd(vk: &VulkanObjects) -> vk::CommandBuffer {
+pub fn begin_temp_graphics_cmd(vk: &VulkanContext) -> vk::CommandBuffer {
     let allocate_info = vk::CommandBufferAllocateInfo::default()
         .command_pool(vk.graphics_command_pool)
         .level(vk::CommandBufferLevel::PRIMARY)
@@ -21,7 +21,7 @@ pub fn begin_temp_graphics_cmd(vk: &VulkanObjects) -> vk::CommandBuffer {
     cmd
 }
 
-pub fn end_temp_graphics_cmd(vk: &VulkanObjects, cmd: vk::CommandBuffer) {
+pub fn end_temp_graphics_cmd(vk: &VulkanContext, cmd: vk::CommandBuffer) {
     unsafe { vk.device.end_command_buffer(cmd) }.unwrap();
 
     let cmds = [cmd];
