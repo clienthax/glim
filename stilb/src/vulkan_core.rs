@@ -288,6 +288,33 @@ impl VulkanContext {
             surface_instance,
         }
     }
+
+    pub fn find_memory_type(
+        self: &Self,
+        type_filter: u32,
+        properties: vk::MemoryPropertyFlags,
+    ) -> u32 {
+        let memory_properties = unsafe {
+            self.instance
+                .get_physical_device_memory_properties(self.physical_device)
+        };
+
+        for i in 0..memory_properties.memory_type_count {
+            // 1. Check if the index is allowed by the filter
+            let is_type_supported = (type_filter & (1 << i)) != 0;
+
+            // 2. Check if the memory type has all required properties
+            let has_required_properties = memory_properties.memory_types[i as usize]
+                .property_flags
+                .contains(properties);
+
+            if is_type_supported && has_required_properties {
+                return i;
+            }
+        }
+
+        panic!("Failed to find a suitable memory type!");
+    }
 }
 
 pub extern "system" fn vulkan_debug_callback(

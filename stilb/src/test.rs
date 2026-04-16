@@ -2,7 +2,7 @@
 mod tests {
     use shaders::TEST_COMPUTE;
 
-    use crate::{math::*, *};
+    use crate::{math::*, texture2d::Texture2D, *};
 
     #[test]
     fn test_initialize() {
@@ -60,6 +60,16 @@ mod tests {
         let cmd = vk.begin_temp_graphics_cmd();
 
         vk.end_temp_graphics_cmd(cmd);
+
+        let mut texture = Texture2D::new(
+            vk,
+            512,
+            512,
+            ash::vk::Format::R32G32B32A32_SFLOAT,
+            ash::vk::ImageUsageFlags::STORAGE | ash::vk::ImageUsageFlags::TRANSFER_SRC,
+        );
+
+        texture.destroy(vk);
 
         deinitialize(stilb);
     }

@@ -18,7 +18,6 @@ impl VulkanContext {
 
         unsafe { self.device.begin_command_buffer(cmd, &begin_info) }.unwrap();
 
-        println!("aa");
         cmd
     }
 

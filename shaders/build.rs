@@ -34,6 +34,6 @@ fn main() {
             panic!("Slang compilation failed for {:?}", shader_path);
         }
 
-        println!("AAA: {:?}", spv_path);
+        println!("spv_path: {:?}", spv_path);
     }
 }

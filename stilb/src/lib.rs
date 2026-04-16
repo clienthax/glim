@@ -2,21 +2,18 @@ use std::ptr;
 
 use ash::vk::Handle;
 
-use glfw_sys::{
-    GLFW_KEY_ESCAPE, GLFW_PRESS, GLFWwindow, glfwCreateWindowSurface, glfwGetKey,
-    glfwGetRequiredInstanceExtensions, glfwPollEvents, glfwSetWindowShouldClose,
-    glfwWindowShouldClose,
-};
+use glfw_sys::{GLFWwindow, glfwCreateWindowSurface};
 
 use crate::{
     mesh::{Mesh, RawMesh},
     vulkan_core::{VulkanConfig, VulkanContext},
-    window::create_window,
+    window::initialize_window,
 };
 
 mod math;
 mod mesh;
-mod tests;
+mod test;
+mod texture2d;
 mod vulkan_cmd;
 mod vulkan_core;
 mod window;
@@ -65,33 +62,6 @@ pub extern "C" fn initialize(config: StilbConfig) -> *mut Stilb {
     };
 
     Box::into_raw(Box::new(stilb))
-}
-
-fn initialize_window(config: StilbConfig, vulkan_config: &mut VulkanConfig) -> *mut GLFWwindow {
-    let mut window = ptr::null_mut();
-    if vulkan_config.enable_window {
-        window = create_window(config.preview_width, config.preview_height);
-
-        unsafe {
-            let mut window_extensions_count: u32 = 0;
-            let window_extensions = glfwGetRequiredInstanceExtensions(&mut window_extensions_count);
-
-            for i in 0..window_extensions_count {
-                let str = *window_extensions.add(i as usize);
-                vulkan_config.window_extensions.push(str);
-            }
-
-            while glfwWindowShouldClose(window) == 0 {
-                glfwPollEvents();
-
-                if glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS {
-                    glfwSetWindowShouldClose(window, 1);
-                    println!("ESC")
-                }
-            }
-        }
-    }
-    window
 }
 
 #[unsafe(no_mangle)]
