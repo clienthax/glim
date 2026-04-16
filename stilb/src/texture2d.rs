@@ -4,12 +4,16 @@ use crate::vulkan_core::VulkanContext;
 
 pub struct Texture2D {
     format: vk::Format,
+    width: u32,
+    height: u32,
+    layout: vk::ImageLayout,
 
     pub image: vk::Image,
     pub memory: vk::DeviceMemory,
     pub view: vk::ImageView,
 }
 
+#[allow(dead_code)]
 impl Texture2D {
     pub fn new(
         vk: &VulkanContext,
@@ -24,6 +28,8 @@ impl Texture2D {
             depth: 1,
         };
 
+        let layout = vk::ImageLayout::UNDEFINED;
+
         let create_info = vk::ImageCreateInfo {
             image_type: vk::ImageType::TYPE_2D,
             format,
@@ -34,7 +40,7 @@ impl Texture2D {
             tiling: vk::ImageTiling::OPTIMAL,
             usage,
             sharing_mode: vk::SharingMode::EXCLUSIVE,
-            initial_layout: vk::ImageLayout::UNDEFINED,
+            initial_layout: layout,
             ..Default::default()
         };
 
@@ -79,10 +85,13 @@ impl Texture2D {
             image,
             memory,
             view,
+            width,
+            height,
+            layout,
         }
     }
 
-    pub fn destroy(self: &mut Self, vk: &VulkanContext) {
+    pub fn destroy(&mut self, vk: &VulkanContext) {
         if self.image.is_null() {
             return;
         }
@@ -96,5 +105,25 @@ impl Texture2D {
         self.view = vk::ImageView::null();
         self.memory = vk::DeviceMemory::null();
         self.image = vk::Image::null();
+    }
+
+    pub fn set_pixels(&self, vk: &VulkanContext, pixels: &[u8]) {
+        let size = (self.width * self.height * pixels.len() as u32 * 8) as vk::DeviceSize;
+    }
+
+    pub fn layout(&self) -> vk::ImageLayout {
+        self.layout
+    }
+
+    pub fn height(&self) -> u32 {
+        self.height
+    }
+
+    pub fn width(&self) -> u32 {
+        self.width
+    }
+
+    pub fn format(&self) -> vk::Format {
+        self.format
     }
 }

@@ -1,6 +1,9 @@
 use ash::{
     Device, Entry, Instance, khr,
-    vk::{self, DebugUtilsMessageSeverityFlagsEXT, DebugUtilsMessageTypeFlagsEXT, Handle},
+    vk::{
+        self, DebugUtilsMessageSeverityFlagsEXT, DebugUtilsMessageTypeFlagsEXT, Handle,
+        MemoryPropertyFlags,
+    },
 };
 use std::{
     collections::HashSet,
@@ -314,6 +317,45 @@ impl VulkanContext {
         }
 
         panic!("Failed to find a suitable memory type!");
+    }
+
+    pub fn create_buffer(
+        &self,
+        size: vk::DeviceSize,
+        usage: vk::BufferUsageFlags,
+        properties: vk::MemoryPropertyFlags,
+    ) -> (vk::Buffer, vk::DeviceMemory) {
+        let create_info = vk::BufferCreateInfo {
+            size,
+            usage,
+            sharing_mode: vk::SharingMode::EXCLUSIVE,
+            ..Default::default()
+        };
+
+        let buffer = unsafe { self.device.create_buffer(&create_info, None).unwrap() };
+
+        let mem_reqs = unsafe { self.device.get_buffer_memory_requirements(buffer) };
+
+        let memory_type_index = self.find_memory_type(mem_reqs.memory_type_bits, properties);
+
+        let mut allocate_info = vk::MemoryAllocateInfo {
+            allocation_size: mem_reqs.size,
+            memory_type_index,
+            ..Default::default()
+        };
+
+        let mut allocate_flags = vk::MemoryAllocateFlagsInfo {
+            flags: vk::MemoryAllocateFlags::DEVICE_ADDRESS,
+            ..Default::default()
+        };
+
+        allocate_info = allocate_info.push_next(&mut allocate_flags);
+
+        let memory = unsafe { self.device.allocate_memory(&allocate_info, None) }.unwrap();
+
+        unsafe { self.device.bind_buffer_memory(buffer, memory, 0) }.unwrap();
+
+        (buffer, memory)
     }
 }
 

@@ -1,5 +1,6 @@
 #[cfg(test)]
 mod tests {
+    use ash::vk;
     use shaders::TEST_COMPUTE;
 
     use crate::{math::*, texture2d::Texture2D, *};
@@ -65,8 +66,8 @@ mod tests {
             vk,
             512,
             512,
-            ash::vk::Format::R32G32B32A32_SFLOAT,
-            ash::vk::ImageUsageFlags::STORAGE | ash::vk::ImageUsageFlags::TRANSFER_SRC,
+            vk::Format::R32G32B32A32_SFLOAT,
+            vk::ImageUsageFlags::STORAGE | vk::ImageUsageFlags::TRANSFER_SRC,
         );
 
         texture.destroy(vk);
