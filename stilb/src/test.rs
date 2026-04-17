@@ -63,8 +63,8 @@ mod tests {
 
         let mut texture = Texture2D::new(
             vk,
-            2,
-            2,
+            256,
+            256,
             vk::Format::R32G32B32A32_SFLOAT,
             vk::ImageUsageFlags::STORAGE
                 | vk::ImageUsageFlags::TRANSFER_SRC
@@ -81,7 +81,7 @@ mod tests {
         ];
 
         // save_bmp("../temp/write.bmp", 2, 2, &pixels).unwrap();
-        texture.set_pixels(vk, &pixels);
+        // texture.set_pixels(vk, &pixels);
         // let pixels_read = texture.read_pixels(vk);
         // save_bmp("../temp/read.bmp", 2, 2, &pixels_read).unwrap();
 
@@ -107,7 +107,7 @@ mod tests {
 
         let image_info = [vk::DescriptorImageInfo {
             image_view: texture.view,
-            image_layout: texture.layout(),
+            image_layout: vk::ImageLayout::GENERAL,
             ..Default::default()
         }];
         let mut image_write = vk::WriteDescriptorSet {
@@ -135,6 +135,33 @@ mod tests {
 
             vk.device.begin_command_buffer(cmd, &begin_info).unwrap();
 
+            let subresource_range = vk::ImageSubresourceRange {
+                aspect_mask: vk::ImageAspectFlags::COLOR,
+                base_mip_level: 0,
+                level_count: 1,
+                base_array_layer: 0,
+                layer_count: 1,
+            };
+
+            let barrier = vk::ImageMemoryBarrier {
+                dst_access_mask: vk::AccessFlags::SHADER_WRITE,
+                old_layout: texture.layout(),
+                new_layout: vk::ImageLayout::GENERAL,
+                image: texture.image,
+                subresource_range,
+                ..Default::default()
+            };
+
+            vk.device.cmd_pipeline_barrier(
+                cmd,
+                vk::PipelineStageFlags::TOP_OF_PIPE,
+                vk::PipelineStageFlags::COMPUTE_SHADER,
+                vk::DependencyFlags::empty(),
+                &[],
+                &[],
+                &[barrier],
+            );
+
             vk.device
                 .cmd_bind_pipeline(cmd, vk::PipelineBindPoint::COMPUTE, shader.pipeline);
 
@@ -147,8 +174,31 @@ mod tests {
                 &[],
             );
 
+            let groups_x = (texture.width() + 7) / 8;
+            let groups_y = (texture.height() + 7) / 8;
+            vk.device.cmd_dispatch(cmd, groups_x, groups_y, 1);
+
             vk.device.end_command_buffer(cmd).unwrap();
+
+            let cmds = [cmd];
+
+            let submit_info = vk::SubmitInfo::default().command_buffers(&cmds);
+
+            vk.device
+                .queue_submit(vk.compute_queue, &[submit_info], vk::Fence::null())
+                .unwrap();
+
+            vk.device.queue_wait_idle(vk.compute_queue).unwrap();
         }
+
+        let pixels_read = texture.read_pixels(vk);
+        save_bmp(
+            "../temp/read.bmp",
+            texture.width(),
+            texture.height(),
+            &pixels_read,
+        )
+        .unwrap();
 
         gpu_mesh.destroy(vk);
         texture.destroy(vk);
