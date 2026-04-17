@@ -80,18 +80,14 @@ mod tests {
             1.0, 1.0, 0.0, 1.0,
         ];
 
-        save_bmp("../temp/write.bmp", 2, 2, &pixels).unwrap();
+        // save_bmp("../temp/write.bmp", 2, 2, &pixels).unwrap();
         texture.set_pixels(vk, &pixels);
-        let pixels_read = texture.read_pixels(vk);
-        save_bmp("../temp/read.bmp", 2, 2, &pixels_read).unwrap();
-
-        texture.destroy(vk);
+        // let pixels_read = texture.read_pixels(vk);
+        // save_bmp("../temp/read.bmp", 2, 2, &pixels_read).unwrap();
 
         let mesh = &stilb_obj.meshes[0];
 
         let mut gpu_mesh = GpuMesh::new(vk, mesh);
-
-        gpu_mesh.destroy(vk);
 
         let mut bindings = Vec::new();
 
@@ -107,6 +103,55 @@ mod tests {
 
         let mut shader = Shader::new(vk, get_test_shader(), &bindings, &[], &specialization_info);
 
+        let mut descriptor_writes = Vec::new();
+
+        let image_info = [vk::DescriptorImageInfo {
+            image_view: texture.view,
+            image_layout: texture.layout(),
+            ..Default::default()
+        }];
+        let mut image_write = vk::WriteDescriptorSet {
+            dst_set: shader.descriptor_set,
+            dst_binding: 0,
+            descriptor_type: vk::DescriptorType::STORAGE_IMAGE,
+            ..Default::default()
+        };
+        image_write = image_write.image_info(&image_info);
+
+        descriptor_writes.push(image_write);
+
+        let cmd = vk.compute_cmd;
+        unsafe {
+            vk.device.update_descriptor_sets(&descriptor_writes, &[]);
+
+            vk.device
+                .reset_command_buffer(cmd, vk::CommandBufferResetFlags::empty())
+                .unwrap();
+
+            let begin_info = vk::CommandBufferBeginInfo {
+                flags: vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT,
+                ..Default::default()
+            };
+
+            vk.device.begin_command_buffer(cmd, &begin_info).unwrap();
+
+            vk.device
+                .cmd_bind_pipeline(cmd, vk::PipelineBindPoint::COMPUTE, shader.pipeline);
+
+            vk.device.cmd_bind_descriptor_sets(
+                cmd,
+                vk::PipelineBindPoint::COMPUTE,
+                shader.pipeline_layout,
+                0,
+                &[shader.descriptor_set],
+                &[],
+            );
+
+            vk.device.end_command_buffer(cmd).unwrap();
+        }
+
+        gpu_mesh.destroy(vk);
+        texture.destroy(vk);
         shader.destroy(vk);
 
         deinitialize(stilb);

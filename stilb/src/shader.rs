@@ -6,8 +6,9 @@ use crate::vulkan_core::VulkanContext;
 
 pub struct Shader {
     module: vk::ShaderModule,
-    pipeline: vk::Pipeline,
-    pipeline_layout: vk::PipelineLayout,
+    pub pipeline: vk::Pipeline,
+    pub pipeline_layout: vk::PipelineLayout,
+    pub descriptor_set: vk::DescriptorSet,
     set_layout: vk::DescriptorSetLayout,
 }
 
@@ -59,11 +60,23 @@ impl Shader {
                 .unwrap()
         }[0];
 
+        let mut allocate_info = vk::DescriptorSetAllocateInfo {
+            descriptor_pool: vk.descriptor_pool,
+            descriptor_set_count: 1,
+            ..Default::default()
+        };
+
+        allocate_info = allocate_info.set_layouts(&set_layouts);
+
+        let descriptor_set =
+            unsafe { vk.device.allocate_descriptor_sets(&allocate_info) }.unwrap()[0];
+
         Self {
             module,
             pipeline_layout,
             pipeline,
             set_layout,
+            descriptor_set,
         }
     }
 

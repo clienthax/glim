@@ -44,6 +44,8 @@ pub struct VulkanContext {
 
     pub descriptor_pool: vk::DescriptorPool,
 
+    pub compute_cmd: vk::CommandBuffer,
+
     pub as_device: Option<khr::acceleration_structure::Device>,
 }
 
@@ -282,6 +284,15 @@ impl VulkanContext {
             None
         };
 
+        let allocate_info = vk::CommandBufferAllocateInfo {
+            command_pool: compute_command_pool,
+            level: vk::CommandBufferLevel::PRIMARY,
+            command_buffer_count: 1,
+            ..Default::default()
+        };
+
+        let compute_cmd = unsafe { device.allocate_command_buffers(&allocate_info) }.unwrap()[0];
+
         Self {
             entry,
             instance,
@@ -297,6 +308,7 @@ impl VulkanContext {
             surface,
             surface_instance,
             as_device,
+            compute_cmd,
         }
     }
 
