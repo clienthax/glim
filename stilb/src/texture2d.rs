@@ -94,9 +94,9 @@ impl Texture2D {
     }
 
     pub fn destroy(&mut self, vk: &VulkanContext) {
-        if self.image.is_null() {
-            return;
-        }
+        assert!(!self.image.is_null());
+        assert!(!self.view.is_null());
+        assert!(!self.memory.is_null());
 
         unsafe {
             vk.device.destroy_image_view(self.view, None);
@@ -152,7 +152,7 @@ impl Texture2D {
 
         let barrier = vk::ImageMemoryBarrier {
             dst_access_mask: vk::AccessFlags::TRANSFER_WRITE,
-            old_layout: vk::ImageLayout::UNDEFINED,
+            old_layout: self.layout,
             new_layout: vk::ImageLayout::TRANSFER_DST_OPTIMAL,
             image: self.image,
             subresource_range,

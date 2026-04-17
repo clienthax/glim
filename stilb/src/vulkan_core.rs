@@ -1,13 +1,12 @@
 use ash::{
     Device, Entry, Instance, khr,
-    vk::{
-        self, DebugUtilsMessageSeverityFlagsEXT, DebugUtilsMessageTypeFlagsEXT, Handle,
-        MemoryPropertyFlags,
-    },
+    vk::{self, DebugUtilsMessageSeverityFlagsEXT, DebugUtilsMessageTypeFlagsEXT, Handle},
 };
+
 use std::{
     collections::HashSet,
     ffi::{CStr, c_char},
+    ptr,
 };
 
 pub struct VulkanConfig {
@@ -303,10 +302,8 @@ impl VulkanContext {
         };
 
         for i in 0..memory_properties.memory_type_count {
-            // 1. Check if the index is allowed by the filter
             let is_type_supported = (type_filter & (1 << i)) != 0;
 
-            // 2. Check if the memory type has all required properties
             let has_required_properties = memory_properties.memory_types[i as usize]
                 .property_flags
                 .contains(properties);
@@ -316,7 +313,7 @@ impl VulkanContext {
             }
         }
 
-        panic!("Failed to find a suitable memory type!");
+        panic!("Failed to find a suitable memory type");
     }
 
     pub fn create_buffer(
@@ -356,6 +353,47 @@ impl VulkanContext {
         unsafe { self.device.bind_buffer_memory(buffer, memory, 0) }.unwrap();
 
         (buffer, memory)
+    }
+
+    pub fn upload_buffer(&self, src: &[u8], dst: vk::Buffer) {
+        let size = src.len() as vk::DeviceSize;
+
+        let usage = vk::BufferUsageFlags::TRANSFER_SRC;
+        let properties =
+            vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT;
+
+        let (staging_buffer, staging_memory) = self.create_buffer(size, usage, properties);
+
+        let ptr = unsafe {
+            self.device
+                .map_memory(staging_memory, 0, size, vk::MemoryMapFlags::empty())
+                .unwrap()
+        } as *mut u8;
+
+        unsafe {
+            ptr::copy_nonoverlapping(src.as_ptr(), ptr, src.len());
+            // self.device.unmap_memory(staging_memory);
+        };
+
+        let cmd = self.begin_temp_graphics_cmd();
+
+        let regions = vk::BufferCopy {
+            src_offset: 0,
+            dst_offset: 0,
+            size,
+        };
+
+        unsafe {
+            self.device
+                .cmd_copy_buffer(cmd, staging_buffer, dst, &[regions])
+        };
+
+        self.end_temp_graphics_cmd(cmd);
+
+        unsafe {
+            self.device.destroy_buffer(staging_buffer, None);
+            self.device.free_memory(staging_memory, None);
+        };
     }
 }
 

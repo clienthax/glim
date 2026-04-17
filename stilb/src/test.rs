@@ -3,7 +3,7 @@ mod tests {
     use ash::vk;
     use shaders::TEST_COMPUTE;
 
-    use crate::{bmp::save_bmp, math::*, texture2d::Texture2D, *};
+    use crate::{bmp::save_bmp, math::*, mesh::GpuMesh, texture2d::Texture2D, *};
 
     #[test]
     fn test_initialize() {
@@ -81,12 +81,18 @@ mod tests {
             1.0, 1.0, 0.0, 1.0,
         ];
 
-        save_bmp("write.bmp", 2, 2, &pixels).unwrap();
+        save_bmp("../temp/write.bmp", 2, 2, &pixels).unwrap();
         texture.set_pixels(vk, &pixels);
         let pixels_read = texture.read_pixels(vk);
-        save_bmp("read.bmp", 2, 2, &pixels_read).unwrap();
+        save_bmp("../temp/read.bmp", 2, 2, &pixels_read).unwrap();
 
         texture.destroy(vk);
+
+        let mesh = &stilb_obj.meshes[0];
+
+        let mut gpu_mesh = GpuMesh::new(vk, mesh);
+
+        gpu_mesh.destroy(vk);
 
         deinitialize(stilb);
     }
