@@ -2,9 +2,17 @@ use ash::vk::{self, Handle};
 
 use crate::vulkan_core::VulkanContext;
 
+pub struct SwapchainFrame {
+    pub image_view: vk::ImageView,
+    pub command_buffer: vk::CommandBuffer,
+    pub image_available_semaphore: vk::Semaphore,
+    pub render_finished_semaphore: vk::Semaphore,
+    pub fence: vk::Fence,
+}
+
 pub struct SwapchainData {
-    pub image_views: Vec<vk::ImageView>,
     pub swapchain: vk::SwapchainKHR,
+    pub frames: Vec<SwapchainFrame>,
 }
 
 fn query_swapchain_support(
@@ -121,7 +129,7 @@ impl VulkanContext {
                 .unwrap()
         };
 
-        let mut image_views = Vec::with_capacity(swapchain_images.len());
+        let mut frames = Vec::with_capacity(swapchain_images.len());
 
         for image in swapchain_images {
             let subresource_range = vk::ImageSubresourceRange {
@@ -141,21 +149,63 @@ impl VulkanContext {
             };
 
             let image_view = unsafe { self.device.create_image_view(&create_info, None).unwrap() };
-            image_views.push(image_view);
+
+            let allocate_info = vk::CommandBufferAllocateInfo {
+                command_pool: self.command_pool,
+                level: vk::CommandBufferLevel::PRIMARY,
+                command_buffer_count: 1,
+                ..Default::default()
+            };
+
+            let command_buffer = unsafe {
+                self.device
+                    .allocate_command_buffers(&allocate_info)
+                    .unwrap()[0]
+            };
+
+            let create_info = vk::SemaphoreCreateInfo {
+                ..Default::default()
+            };
+
+            let image_available_semaphore =
+                unsafe { self.device.create_semaphore(&create_info, None).unwrap() };
+            let render_finished_semaphore =
+                unsafe { self.device.create_semaphore(&create_info, None).unwrap() };
+
+            let create_info = vk::FenceCreateInfo {
+                flags: vk::FenceCreateFlags::SIGNALED,
+                ..Default::default()
+            };
+
+            let fence = unsafe { self.device.create_fence(&create_info, None).unwrap() };
+
+            let frame = SwapchainFrame {
+                image_view,
+                command_buffer,
+                image_available_semaphore,
+                render_finished_semaphore,
+                fence,
+            };
+
+            frames.push(frame);
         }
 
-        self.swapchain = SwapchainData {
-            image_views,
-            swapchain,
-        };
+        self.swapchain = SwapchainData { frames, swapchain };
     }
 
     pub fn destroy_swapchain(&mut self) {
-        for image_view in &self.swapchain.image_views {
-            unsafe { self.device.destroy_image_view(*image_view, None) };
+        for frame in &self.swapchain.frames {
+            unsafe {
+                self.device.destroy_image_view(frame.image_view, None);
+                self.device.destroy_fence(frame.fence, None);
+                self.device
+                    .destroy_semaphore(frame.image_available_semaphore, None);
+                self.device
+                    .destroy_semaphore(frame.render_finished_semaphore, None);
+            };
         }
 
-        self.swapchain.image_views.clear();
+        self.swapchain.frames.clear();
 
         let swapchain = self.swapchain.swapchain;
 

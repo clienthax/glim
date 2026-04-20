@@ -140,7 +140,7 @@ impl Texture2D {
             vk.device.unmap_memory(staging_memory);
         };
 
-        let cmd = vk.begin_temp_graphics_cmd();
+        let cmd = vk.begin_temp_cmd();
 
         let subresource_range = vk::ImageSubresourceRange {
             aspect_mask: vk::ImageAspectFlags::COLOR,
@@ -224,7 +224,7 @@ impl Texture2D {
             )
         };
 
-        vk.end_temp_graphics_cmd(cmd);
+        vk.end_temp_cmd(cmd);
 
         unsafe {
             vk.device.destroy_buffer(staging_buffer, None);
@@ -241,7 +241,7 @@ impl Texture2D {
             vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT,
         );
 
-        let cmd = vk.begin_temp_graphics_cmd();
+        let cmd = vk.begin_temp_cmd();
 
         let subresource_range = vk::ImageSubresourceRange {
             aspect_mask: vk::ImageAspectFlags::COLOR,
@@ -306,7 +306,7 @@ impl Texture2D {
             )
         };
 
-        vk.end_temp_graphics_cmd(cmd);
+        vk.end_temp_cmd(cmd);
 
         let ptr = unsafe {
             vk.device

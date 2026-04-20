@@ -1,6 +1,6 @@
 use std::ptr;
 
-use ash::vk::Handle;
+use ash::vk::{self, Handle};
 
 use glfw_sys::{GLFWwindow, glfwCreateWindowSurface};
 
@@ -20,6 +20,12 @@ mod vulkan_cmd;
 mod vulkan_core;
 mod vulkan_swapchain;
 mod window;
+
+pub fn blit_with_shader(vk: &VulkanContext, cmd: vk::CommandBuffer, image: vk::ImageView) {
+
+    // vk.device.bindre
+    // transition to general
+}
 
 pub struct Stilb {
     pub vk: VulkanContext,
@@ -77,13 +83,6 @@ pub extern "C" fn deinitialize(stilb: *mut Stilb) {
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn run(stilb: *mut Stilb) {
-    let stilb = unsafe { &mut *stilb };
-
-    platform_loop(stilb.window);
-}
-
-#[unsafe(no_mangle)]
 pub extern "C" fn add_mesh(stilb: *mut Stilb, raw: FfiMesh) {
     unsafe {
         let stilb_obj = &mut *stilb;
@@ -94,4 +93,11 @@ pub extern "C" fn add_mesh(stilb: *mut Stilb, raw: FfiMesh) {
 
         stilb_obj.meshes.push(mesh);
     }
+}
+
+#[unsafe(no_mangle)]
+pub extern "C" fn run(stilb: *mut Stilb) {
+    let stilb = unsafe { &mut *stilb };
+
+    platform_loop(stilb.window);
 }

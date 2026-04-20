@@ -40,12 +40,9 @@ pub struct VulkanContext {
     pub compute_queue: vk::Queue,
     pub present_queue: vk::Queue,
 
-    pub graphics_command_pool: vk::CommandPool,
-    pub compute_command_pool: vk::CommandPool,
+    pub command_pool: vk::CommandPool,
 
     pub descriptor_pool: vk::DescriptorPool,
-
-    pub compute_cmd: vk::CommandBuffer,
 
     pub swapchain: SwapchainData,
 
@@ -228,24 +225,19 @@ impl VulkanContext {
         let compute_queue = unsafe { device.get_device_queue(queue_family_indices.compute, 0) };
         let present_queue = unsafe { device.get_device_queue(queue_family_indices.present, 0) };
 
+        // for now only this is supported
+        assert_eq!(compute_queue, graphics_queue);
+
         if config.enable_window {
             // create_swapchain();
         }
 
         let pool_info = vk::CommandPoolCreateInfo {
             flags: vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER,
-            queue_family_index: queue_family_indices.graphics,
-            ..Default::default()
-        };
-        let graphics_command_pool =
-            unsafe { device.create_command_pool(&pool_info, None) }.unwrap();
-
-        let pool_info = vk::CommandPoolCreateInfo {
-            flags: vk::CommandPoolCreateFlags::RESET_COMMAND_BUFFER,
             queue_family_index: queue_family_indices.compute,
             ..Default::default()
         };
-        let compute_command_pool = unsafe { device.create_command_pool(&pool_info, None) }.unwrap();
+        let command_pool = unsafe { device.create_command_pool(&pool_info, None) }.unwrap();
 
         let mut pool_sizes = Vec::new();
         let storage_image_pool = vk::DescriptorPoolSize {
@@ -289,18 +281,9 @@ impl VulkanContext {
 
         let swapchain_device = khr::swapchain::Device::new(&instance, &device);
 
-        let allocate_info = vk::CommandBufferAllocateInfo {
-            command_pool: compute_command_pool,
-            level: vk::CommandBufferLevel::PRIMARY,
-            command_buffer_count: 1,
-            ..Default::default()
-        };
-
-        let compute_cmd = unsafe { device.allocate_command_buffers(&allocate_info) }.unwrap()[0];
-
         let swapchain = SwapchainData {
-            image_views: Vec::new(),
             swapchain: vk::SwapchainKHR::null(),
+            frames: Vec::new(),
         };
 
         Self {
@@ -312,13 +295,11 @@ impl VulkanContext {
             graphics_queue,
             compute_queue,
             present_queue,
-            graphics_command_pool,
-            compute_command_pool,
+            command_pool,
             descriptor_pool,
             surface,
             surface_instance,
             as_device,
-            compute_cmd,
             swapchain_device,
             swapchain,
         }
@@ -408,7 +389,7 @@ impl VulkanContext {
             // self.device.unmap_memory(staging_memory);
         };
 
-        let cmd = self.begin_temp_graphics_cmd();
+        let cmd = self.begin_temp_cmd();
 
         let regions = vk::BufferCopy {
             src_offset: 0,
@@ -421,7 +402,7 @@ impl VulkanContext {
                 .cmd_copy_buffer(cmd, staging_buffer, dst, &[regions])
         };
 
-        self.end_temp_graphics_cmd(cmd);
+        self.end_temp_cmd(cmd);
 
         unsafe {
             self.device.destroy_buffer(staging_buffer, None);
@@ -494,8 +475,7 @@ impl Drop for VulkanContext {
 
             device.destroy_descriptor_pool(self.descriptor_pool, None);
 
-            device.destroy_command_pool(self.graphics_command_pool, None);
-            device.destroy_command_pool(self.compute_command_pool, None);
+            device.destroy_command_pool(self.command_pool, None);
 
             if !self.surface.is_null() {
                 self.surface_instance.destroy_surface(self.surface, None);

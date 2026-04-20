@@ -3,9 +3,9 @@ use ash::vk;
 use crate::vulkan_core::VulkanContext;
 
 impl VulkanContext {
-    pub fn begin_temp_graphics_cmd(self: &Self) -> vk::CommandBuffer {
+    pub fn begin_temp_cmd(self: &Self) -> vk::CommandBuffer {
         let allocate_info = vk::CommandBufferAllocateInfo::default()
-            .command_pool(self.graphics_command_pool)
+            .command_pool(self.command_pool)
             .level(vk::CommandBufferLevel::PRIMARY)
             .command_buffer_count(1);
 
@@ -21,7 +21,7 @@ impl VulkanContext {
         cmd
     }
 
-    pub fn end_temp_graphics_cmd(self: &Self, cmd: vk::CommandBuffer) {
+    pub fn end_temp_cmd(self: &Self, cmd: vk::CommandBuffer) {
         unsafe { self.device.end_command_buffer(cmd) }.unwrap();
 
         let cmds = [cmd];
@@ -35,9 +35,6 @@ impl VulkanContext {
 
         unsafe { self.device.queue_wait_idle(self.graphics_queue).unwrap() };
 
-        unsafe {
-            self.device
-                .free_command_buffers(self.graphics_command_pool, &cmds)
-        };
+        unsafe { self.device.free_command_buffers(self.command_pool, &cmds) };
     }
 }

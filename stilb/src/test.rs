@@ -124,7 +124,7 @@ mod tests {
 
         descriptor_writes.push(image_write);
 
-        let cmd = vk.compute_cmd;
+        let cmd = vk.begin_temp_cmd();
         unsafe {
             vk.device.update_descriptor_sets(&descriptor_writes, &[]);
 
