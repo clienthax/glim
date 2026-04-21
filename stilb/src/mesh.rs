@@ -17,8 +17,9 @@ pub struct FfiMesh {
 #[derive(Debug)]
 pub struct Vertex {
     position: Vector3,
+    uv_x: f32,
     normal: Vector3,
-    uv: Vector2,
+    uv_y: f32,
 }
 
 #[derive(Debug)]
@@ -40,8 +41,9 @@ impl Mesh {
         for i in 0..verts.len() {
             let vertex = Vertex {
                 position: verts[i],
+                uv_x: uvs[i].x,
                 normal: normals[i],
-                uv: uvs[i],
+                uv_y: uvs[i].y,
             };
 
             vertices_copy.push(vertex);

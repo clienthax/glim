@@ -4,8 +4,9 @@ PushConstants Push;
 struct Vertex
 {
     float3 position;
+    float uvX;
     float3 normal;
-    float2 uv;
+    float uvY;
 };
 
 struct PushConstants
@@ -85,7 +86,7 @@ void geometry(triangle VertexOutput input[3], uint primitiveID: SV_PrimitiveID, 
         uint vIndex = Push.indices[primitiveID * 3 + i];
         Vertex v = Push.vertices[vIndex];
 
-        float2 uv = v.uv + jitter;
+        float2 uv = float2(v.uvX, v.uvY) + jitter;
 
         Varyings outV;
         outV.positionCS = float4(uv.x * 2.0 - 1.0, (1.0 - uv.y) * 2.0 - 1.0, 0.0, 1.0);
