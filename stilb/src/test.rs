@@ -97,7 +97,7 @@ mod tests {
         let mut test_shader = load_shader_test(vk);
         update_test_shader(vk, &test_shader, texture.view);
 
-        let cmd = vk.begin_temp_cmd();
+        let cmd = vk.begin_single_use_cmd();
 
         unsafe {
             let barrier = texture.barrier(
@@ -132,7 +132,7 @@ mod tests {
             let groups_y = (texture.height() + 7) / 8;
             vk.device.cmd_dispatch(cmd, groups_x, groups_y, 1);
 
-            vk.end_temp_cmd(cmd);
+            vk.end_single_use_cmd(cmd);
         }
 
         let pixels_read = texture.read_pixels(vk);

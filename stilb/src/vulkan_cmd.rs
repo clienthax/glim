@@ -3,13 +3,8 @@ use ash::vk;
 use crate::vulkan_core::VulkanContext;
 
 impl VulkanContext {
-    pub fn begin_temp_cmd(self: &Self) -> vk::CommandBuffer {
-        let allocate_info = vk::CommandBufferAllocateInfo::default()
-            .command_pool(self.command_pool)
-            .level(vk::CommandBufferLevel::PRIMARY)
-            .command_buffer_count(1);
-
-        let cmd = unsafe { self.device.allocate_command_buffers(&allocate_info) }.unwrap()[0];
+    pub fn begin_single_use_cmd(self: &Self) -> vk::CommandBuffer {
+        let cmd = self.command_buffer;
 
         let begin_info = vk::CommandBufferBeginInfo {
             flags: vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT,
@@ -21,7 +16,7 @@ impl VulkanContext {
         cmd
     }
 
-    pub fn end_temp_cmd(self: &Self, cmd: vk::CommandBuffer) {
+    pub fn end_single_use_cmd(self: &Self, cmd: vk::CommandBuffer) {
         unsafe { self.device.end_command_buffer(cmd) }.unwrap();
 
         let cmds = [cmd];
@@ -34,7 +29,5 @@ impl VulkanContext {
         };
 
         unsafe { self.device.queue_wait_idle(self.graphics_queue).unwrap() };
-
-        unsafe { self.device.free_command_buffers(self.command_pool, &cmds) };
     }
 }

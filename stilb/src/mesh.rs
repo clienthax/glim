@@ -245,7 +245,7 @@ impl GpuMesh {
             transform_offset: 0,
         };
 
-        let cmd = vk.begin_temp_cmd();
+        let cmd = vk.begin_single_use_cmd();
 
         unsafe {
             as_device.cmd_build_acceleration_structures(
@@ -255,7 +255,7 @@ impl GpuMesh {
             )
         };
 
-        vk.end_temp_cmd(cmd);
+        vk.end_single_use_cmd(cmd);
 
         let address_info = vk::AccelerationStructureDeviceAddressInfoKHR {
             acceleration_structure: blas,

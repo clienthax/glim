@@ -42,6 +42,8 @@ pub struct VulkanContext {
 
     pub command_pool: vk::CommandPool,
 
+    pub command_buffer: vk::CommandBuffer,
+
     pub descriptor_pool: vk::DescriptorPool,
 
     pub swapchain: SwapchainData,
@@ -286,6 +288,13 @@ impl VulkanContext {
             frames: Vec::new(),
         };
 
+        let allocate_info = vk::CommandBufferAllocateInfo::default()
+            .command_pool(command_pool)
+            .level(vk::CommandBufferLevel::PRIMARY)
+            .command_buffer_count(1);
+
+        let command_buffer = unsafe { device.allocate_command_buffers(&allocate_info) }.unwrap()[0];
+
         Self {
             entry,
             instance,
@@ -302,6 +311,7 @@ impl VulkanContext {
             as_device,
             swapchain_device,
             swapchain,
+            command_buffer,
         }
     }
 
@@ -389,7 +399,7 @@ impl VulkanContext {
             // self.device.unmap_memory(staging_memory);
         };
 
-        let cmd = self.begin_temp_cmd();
+        let cmd = self.begin_single_use_cmd();
 
         let regions = vk::BufferCopy {
             src_offset: 0,
@@ -402,7 +412,7 @@ impl VulkanContext {
                 .cmd_copy_buffer(cmd, staging_buffer, dst, &[regions])
         };
 
-        self.end_temp_cmd(cmd);
+        self.end_single_use_cmd(cmd);
 
         unsafe {
             self.device.destroy_buffer(staging_buffer, None);
