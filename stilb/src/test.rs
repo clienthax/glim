@@ -1,9 +1,15 @@
 #[cfg(test)]
 mod tests {
     use ash::vk;
-    use shaders::get_test_shader;
 
-    use crate::{bmp::save_bmp, math::*, mesh::GpuMesh, shader::Shader, texture2d::Texture2D, *};
+    use crate::{
+        bmp::save_bmp,
+        math::*,
+        mesh::GpuMesh,
+        shader::{load_shader_test, update_test_shader},
+        texture2d::Texture2D,
+        *,
+    };
 
     fn get_test_config() -> StilbConfig {
         let preview = true;
@@ -67,8 +73,8 @@ mod tests {
 
         let mut texture = Texture2D::new(
             vk,
-            256,
-            256,
+            config.preview_width,
+            config.preview_height,
             vk::Format::R32G32B32A32_SFLOAT,
             vk::ImageUsageFlags::STORAGE
                 | vk::ImageUsageFlags::TRANSFER_SRC
@@ -76,58 +82,23 @@ mod tests {
                 | vk::ImageUsageFlags::SAMPLED,
         );
 
-        #[rustfmt::skip]
-        let pixels: [f32; 16] = [
-            1.0, 0.0, 0.0, 1.0,
-            0.0, 1.0, 0.0, 1.0,
-            0.0, 0.0, 1.0, 1.0,
-            1.0, 1.0, 0.0, 1.0,
-        ];
-
-        // save_bmp("../temp/write.bmp", 2, 2, &pixels).unwrap();
-        // texture.set_pixels(vk, &pixels);
-        // let pixels_read = texture.read_pixels(vk);
-        // save_bmp("../temp/read.bmp", 2, 2, &pixels_read).unwrap();
+        // #[rustfmt::skip]
+        // let pixels: [f32; 16] = [
+        //     1.0, 0.0, 0.0, 1.0,
+        //     0.0, 1.0, 0.0, 1.0,
+        //     0.0, 0.0, 1.0, 1.0,
+        //     1.0, 1.0, 0.0, 1.0,
+        // ];
 
         let mesh = &stilb_obj.meshes[0];
 
         let mut gpu_mesh = GpuMesh::new(vk, mesh);
 
-        let mut bindings = Vec::new();
-
-        bindings.push(vk::DescriptorSetLayoutBinding {
-            binding: 0,
-            descriptor_type: vk::DescriptorType::STORAGE_IMAGE,
-            descriptor_count: 1,
-            stage_flags: vk::ShaderStageFlags::COMPUTE,
-            ..Default::default()
-        });
-
-        let specialization_info = vk::SpecializationInfo::default();
-
-        let mut shader = Shader::new(vk, get_test_shader(), &bindings, &[], &specialization_info);
-
-        let mut descriptor_writes = Vec::new();
-
-        let image_info = [vk::DescriptorImageInfo {
-            image_view: texture.view,
-            image_layout: vk::ImageLayout::GENERAL,
-            ..Default::default()
-        }];
-        let mut image_write = vk::WriteDescriptorSet {
-            dst_set: shader.descriptor_set,
-            dst_binding: 0,
-            descriptor_type: vk::DescriptorType::STORAGE_IMAGE,
-            ..Default::default()
-        };
-        image_write = image_write.image_info(&image_info);
-
-        descriptor_writes.push(image_write);
+        let mut shader = load_shader_test(vk);
+        update_test_shader(vk, &shader, texture.view);
 
         let cmd = vk.begin_temp_cmd();
         unsafe {
-            vk.device.update_descriptor_sets(&descriptor_writes, &[]);
-
             vk.device
                 .reset_command_buffer(cmd, vk::CommandBufferResetFlags::empty())
                 .unwrap();
@@ -139,22 +110,11 @@ mod tests {
 
             vk.device.begin_command_buffer(cmd, &begin_info).unwrap();
 
-            let subresource_range = vk::ImageSubresourceRange {
-                aspect_mask: vk::ImageAspectFlags::COLOR,
-                base_mip_level: 0,
-                level_count: 1,
-                base_array_layer: 0,
-                layer_count: 1,
-            };
-
-            let barrier = vk::ImageMemoryBarrier {
-                dst_access_mask: vk::AccessFlags::SHADER_WRITE,
-                old_layout: texture.layout(),
-                new_layout: vk::ImageLayout::GENERAL,
-                image: texture.image,
-                subresource_range,
-                ..Default::default()
-            };
+            let barrier = texture.barrier(
+                vk::ImageLayout::GENERAL,
+                vk::AccessFlags::default(),
+                vk::AccessFlags::SHADER_WRITE,
+            );
 
             vk.device.cmd_pipeline_barrier(
                 cmd,

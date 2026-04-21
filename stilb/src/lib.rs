@@ -34,6 +34,7 @@ pub struct Stilb {
 }
 
 #[repr(C)]
+#[derive(Clone, Copy)]
 pub struct StilbConfig {
     is_preview: u8,
     preview_width: u32,

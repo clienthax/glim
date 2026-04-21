@@ -243,27 +243,11 @@ impl Texture2D {
 
         let cmd = vk.begin_temp_cmd();
 
-        let subresource_range = vk::ImageSubresourceRange {
-            aspect_mask: vk::ImageAspectFlags::COLOR,
-            base_mip_level: 0,
-            level_count: 1,
-            base_array_layer: 0,
-            layer_count: 1,
-        };
-
-        let old_layout = self.layout();
-
-        let barrier = vk::ImageMemoryBarrier {
-            src_access_mask: vk::AccessFlags::SHADER_WRITE,
-            dst_access_mask: vk::AccessFlags::TRANSFER_READ,
-            old_layout: old_layout,
-            new_layout: vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
-            image: self.image,
-            subresource_range,
-            ..Default::default()
-        };
-
-        self.layout = vk::ImageLayout::TRANSFER_SRC_OPTIMAL;
+        let barrier = self.barrier(
+            vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
+            vk::AccessFlags::SHADER_WRITE,
+            vk::AccessFlags::TRANSFER_READ,
+        );
 
         unsafe {
             vk.device.cmd_pipeline_barrier(
@@ -324,6 +308,35 @@ impl Texture2D {
         };
 
         pixels
+    }
+
+    pub fn barrier<'a>(
+        &'a mut self,
+        new_layout: vk::ImageLayout,
+        src_access_mask: vk::AccessFlags,
+        dst_access_mask: vk::AccessFlags,
+    ) -> vk::ImageMemoryBarrier<'a> {
+        let subresource_range = vk::ImageSubresourceRange {
+            aspect_mask: vk::ImageAspectFlags::COLOR,
+            base_mip_level: 0,
+            level_count: 1,
+            base_array_layer: 0,
+            layer_count: 1,
+        };
+
+        let barrier = vk::ImageMemoryBarrier {
+            src_access_mask,
+            dst_access_mask,
+            old_layout: self.layout(),
+            new_layout,
+            image: self.image,
+            subresource_range,
+            ..Default::default()
+        };
+
+        self.layout = new_layout;
+
+        barrier
     }
 
     pub fn layout(&self) -> vk::ImageLayout {

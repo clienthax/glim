@@ -1,6 +1,7 @@
 use std::ffi::CStr;
 
 use ash::vk::{self, Handle};
+use shaders::get_test_shader;
 
 use crate::vulkan_core::VulkanContext;
 
@@ -101,4 +102,40 @@ impl Shader {
         self.pipeline_layout = vk::PipelineLayout::null();
         self.set_layout = vk::DescriptorSetLayout::null();
     }
+}
+
+pub fn load_shader_test(vk: &VulkanContext) -> Shader {
+    let mut bindings = Vec::new();
+
+    bindings.push(vk::DescriptorSetLayoutBinding {
+        binding: 0,
+        descriptor_type: vk::DescriptorType::STORAGE_IMAGE,
+        descriptor_count: 1,
+        stage_flags: vk::ShaderStageFlags::COMPUTE,
+        ..Default::default()
+    });
+
+    let specialization_info = vk::SpecializationInfo::default();
+
+    Shader::new(vk, get_test_shader(), &bindings, &[], &specialization_info)
+}
+
+pub fn update_test_shader(vk: &VulkanContext, shader: &Shader, binding0: vk::ImageView) {
+    let image_info = [vk::DescriptorImageInfo {
+        image_view: binding0,
+        image_layout: vk::ImageLayout::GENERAL,
+        ..Default::default()
+    }];
+
+    let mut image_write = vk::WriteDescriptorSet {
+        dst_set: shader.descriptor_set,
+        dst_binding: 0,
+        descriptor_type: vk::DescriptorType::STORAGE_IMAGE,
+        ..Default::default()
+    };
+    image_write = image_write.image_info(&image_info);
+
+    let descriptor_writes = [image_write];
+
+    unsafe { vk.device.update_descriptor_sets(&descriptor_writes, &[]) };
 }
