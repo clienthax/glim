@@ -26,29 +26,45 @@ mod tests {
         }
     }
 
+    fn get_test_mesh_moneky() -> Mesh {
+        let bytes = include_bytes!("../../meshes/monkey.bin");
+
+        assert_eq!(bytes.len() % std::mem::size_of::<Vertex>(), 0);
+
+        let vertices: Vec<Vertex> = unsafe {
+            let ptr = bytes.as_ptr() as *const Vertex;
+            let len = bytes.len() / std::mem::size_of::<Vertex>();
+            std::slice::from_raw_parts(ptr, len).to_vec()
+        };
+
+        let indices: Vec<u32> = (0..vertices.len() as u32).collect();
+
+        Mesh { vertices, indices }
+    }
+
     fn get_test_mesh() -> Mesh {
-        let vertices = vec![
+        let vertices = [
             Vector3::new(-0.5, 0.0, -0.5),
             Vector3::new(0.5, 0.0, -0.5),
             Vector3::new(0.5, 0.0, 0.5),
             Vector3::new(-0.5, 0.0, 0.5),
         ];
 
-        let normals = vec![
+        let normals = [
             Vector3::new(0.0, 1.0, 0.0),
             Vector3::new(0.0, 1.0, 0.0),
             Vector3::new(0.0, 1.0, 0.0),
             Vector3::new(0.0, 1.0, 0.0),
         ];
 
-        let uvs = vec![
+        let uvs = [
             Vector2::new(0.0, 0.0),
             Vector2::new(1.0, 0.0),
             Vector2::new(1.0, 1.0),
             Vector2::new(0.0, 1.0),
         ];
 
-        let indices: Vec<u32> = vec![0, 1, 2, 2, 3, 0];
+        let indices = [0, 2, 1, 2, 0, 3];
 
         assert!(uvs.len() == vertices.len());
         assert!(normals.len() == vertices.len());
@@ -190,7 +206,7 @@ mod tests {
         let stilb_obj = unsafe { &mut *stilb };
         let vk = &mut stilb_obj.vk;
 
-        stilb_obj.meshes.push(get_test_mesh());
+        stilb_obj.meshes.push(get_test_mesh_moneky());
         let mesh = &stilb_obj.meshes[0];
 
         let mut visibility = Texture2D::new(
@@ -286,8 +302,7 @@ mod tests {
                 &constants_bytes,
             );
 
-            vk.device
-                .cmd_draw(cmd, mesh.vertices.len() as u32, 25, 0, 0);
+            vk.device.cmd_draw(cmd, mesh.indices.len() as u32, 25, 0, 0);
 
             vk.device.cmd_end_render_pass(cmd);
         }

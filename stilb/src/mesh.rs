@@ -14,7 +14,7 @@ pub struct FfiMesh {
 }
 
 #[repr(C)]
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub struct Vertex {
     position: Vector3,
     uv_x: f32,
