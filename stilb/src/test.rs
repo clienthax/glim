@@ -1,15 +1,11 @@
 #[cfg(test)]
 mod tests {
     use ash::vk;
-    use shaders::{
-        get_visibility_fragment_shader, get_visibility_geometry_shader,
-        get_visibility_vertex_shader,
-    };
 
     use crate::{
         bmp::save_bmp,
         compute_shader::{load_shader_test, update_test_shader},
-        graphics_shader::GraphicsShader,
+        graphics_shader::{VisibilityPushConstants, create_visibility_shader},
         math::*,
         mesh::{GpuMesh, Vertex},
         texture2d::Texture2D,
@@ -211,34 +207,7 @@ mod tests {
 
         let mut gpu_mesh = GpuMesh::new(vk, &mesh);
 
-        #[repr(C)]
-        struct PushConstants {
-            vertices: *const Vertex,
-            indices: *const u32,
-            width: u32,
-            height: u32,
-            padding0: f32,
-            padding1: f32,
-        }
-
-        let push_constant_ranges = [vk::PushConstantRange {
-            stage_flags: vk::ShaderStageFlags::GEOMETRY
-                | vk::ShaderStageFlags::FRAGMENT
-                | vk::ShaderStageFlags::VERTEX,
-            offset: 0,
-            size: std::mem::size_of::<PushConstants>() as u32,
-        }];
-
-        let mut shader = GraphicsShader::new(
-            vk,
-            Some(get_visibility_vertex_shader()),
-            Some(get_visibility_fragment_shader()),
-            Some(get_visibility_geometry_shader()),
-            &[],
-            &push_constant_ranges,
-            &vk::SpecializationInfo::default(),
-            &visibility,
-        );
+        let mut shader = create_visibility_shader(vk, &visibility);
 
         let cmd = vk.begin_single_use_cmd();
 
@@ -262,7 +231,7 @@ mod tests {
         };
         render_pass_begin = render_pass_begin.clear_values(&clear_values);
 
-        let push = PushConstants {
+        let push = VisibilityPushConstants {
             vertices: gpu_mesh.vertex_address() as _,
             indices: gpu_mesh.index_address() as _,
             width: visibility.width(),
@@ -273,8 +242,8 @@ mod tests {
 
         let constants_bytes = unsafe {
             std::slice::from_raw_parts(
-                &push as *const PushConstants as *const u8,
-                std::mem::size_of::<PushConstants>(),
+                &push as *const VisibilityPushConstants as *const u8,
+                std::mem::size_of::<VisibilityPushConstants>(),
             )
         };
 
@@ -312,6 +281,26 @@ mod tests {
         shader.destroy(vk);
         visibility.destroy(vk);
         gpu_mesh.destroy(vk);
+
+        deinitialize(app);
+    }
+
+    #[test]
+    fn test_headless_bake() {
+        let config = StilbConfig {
+            is_preview: 0,
+            preview_width: 512,
+            preview_height: 512,
+        };
+
+        let app = initialize(config);
+        let app = unsafe { &mut *app };
+
+        let mesh = get_test_mesh_moneky();
+
+        app.meshes.push(mesh);
+
+        run(app);
 
         deinitialize(app);
     }

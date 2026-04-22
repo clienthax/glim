@@ -1,8 +1,11 @@
 use std::ffi::CStr;
 
 use ash::vk::{self, Handle};
+use shaders::{
+    get_visibility_fragment_shader, get_visibility_geometry_shader, get_visibility_vertex_shader,
+};
 
-use crate::{texture2d::Texture2D, vulkan_core::VulkanContext};
+use crate::{mesh::Vertex, texture2d::Texture2D, vulkan_core::VulkanContext};
 
 pub struct GraphicsShader {
     vertex_module: vk::ShaderModule,
@@ -276,4 +279,36 @@ impl GraphicsShader {
         self.framebuffer = vk::Framebuffer::null();
         self.render_pass = vk::RenderPass::null();
     }
+}
+
+#[repr(C)]
+pub struct VisibilityPushConstants {
+    pub vertices: *const Vertex,
+    pub indices: *const u32,
+    pub width: u32,
+    pub height: u32,
+    pub padding0: f32,
+    pub padding1: f32,
+}
+
+pub fn create_visibility_shader(vk: &mut VulkanContext, visibility: &Texture2D) -> GraphicsShader {
+    let push_constant_ranges = [vk::PushConstantRange {
+        stage_flags: vk::ShaderStageFlags::GEOMETRY
+            | vk::ShaderStageFlags::FRAGMENT
+            | vk::ShaderStageFlags::VERTEX,
+        offset: 0,
+        size: std::mem::size_of::<VisibilityPushConstants>() as u32,
+    }];
+
+    let mut shader = GraphicsShader::new(
+        vk,
+        Some(get_visibility_vertex_shader()),
+        Some(get_visibility_fragment_shader()),
+        Some(get_visibility_geometry_shader()),
+        &[],
+        &push_constant_ranges,
+        &vk::SpecializationInfo::default(),
+        visibility,
+    );
+    shader
 }

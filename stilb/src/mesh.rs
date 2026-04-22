@@ -58,15 +58,15 @@ impl Mesh {
     }
 }
 
-pub struct VulkanBlas {
-    blas: vk::AccelerationStructureKHR,
+pub struct VulkanAs {
+    acceleration_structure: vk::AccelerationStructureKHR,
     buffer: vk::Buffer,
     memory: vk::DeviceMemory,
     address: vk::DeviceAddress,
 }
 
 pub enum AccelerationStructureType {
-    RayQuery(VulkanBlas),
+    RayQuery(VulkanAs),
     CwBvh,
 }
 
@@ -80,6 +80,8 @@ pub struct GpuMesh {
     index_address: vk::DeviceAddress,
 
     acceleration_structure: AccelerationStructureType,
+
+    pub index_len: u32,
 }
 
 impl GpuMesh {
@@ -143,6 +145,7 @@ impl GpuMesh {
             vertex_address,
             index_address,
             acceleration_structure: bvh,
+            index_len: mesh.indices.len() as u32,
         }
     }
 
@@ -151,7 +154,7 @@ impl GpuMesh {
         mesh: &Mesh,
         vertex_address: vk::DeviceAddress,
         index_address: vk::DeviceAddress,
-    ) -> VulkanBlas {
+    ) -> VulkanAs {
         let triangles = vk::AccelerationStructureGeometryTrianglesDataKHR {
             vertex_format: vk::Format::R32G32B32_SFLOAT,
             vertex_data: vk::DeviceOrHostAddressConstKHR {
@@ -272,8 +275,8 @@ impl GpuMesh {
             vk.device.free_memory(scratch_memory, None);
         }
 
-        VulkanBlas {
-            blas,
+        VulkanAs {
+            acceleration_structure: blas,
             buffer: blas_buffer,
             memory: blas_memory,
             address: blas_address,
@@ -283,7 +286,7 @@ impl GpuMesh {
     pub fn destroy(&mut self, vk: &VulkanContext) {
         match &mut self.acceleration_structure {
             AccelerationStructureType::RayQuery(vulkan_blas) => {
-                assert!(!vulkan_blas.blas.is_null());
+                assert!(!vulkan_blas.acceleration_structure.is_null());
                 assert!(!vulkan_blas.memory.is_null());
                 assert!(!vulkan_blas.buffer.is_null());
 
@@ -294,7 +297,8 @@ impl GpuMesh {
                 unsafe {
                     vk.device.destroy_buffer(vulkan_blas.buffer, None);
                     vk.device.free_memory(vulkan_blas.memory, None);
-                    as_device.destroy_acceleration_structure(vulkan_blas.blas, None);
+                    as_device
+                        .destroy_acceleration_structure(vulkan_blas.acceleration_structure, None);
                 };
 
                 vulkan_blas.address = 0;
@@ -332,5 +336,146 @@ impl GpuMesh {
 
     pub fn index_address(&self) -> u64 {
         self.index_address
+    }
+}
+
+pub fn create_tlas(vk: &VulkanContext, blas: &VulkanAs) -> VulkanAs {
+    let Some(as_device) = &vk.as_device else {
+        unreachable!("expected as device");
+    };
+
+    let as_instance = vk::AccelerationStructureInstanceKHR {
+        transform: vk::TransformMatrixKHR {
+            matrix: [1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0, 0.0, 0.0, 0.0, 1.0, 0.0],
+        },
+        instance_custom_index_and_mask: vk::Packed24_8::new(0, 0xFF),
+        instance_shader_binding_table_record_offset_and_flags: vk::Packed24_8::new(
+            0,
+            vk::GeometryInstanceFlagsKHR::TRIANGLE_FACING_CULL_DISABLE.as_raw() as u8,
+        ),
+        acceleration_structure_reference: vk::AccelerationStructureReferenceKHR {
+            device_handle: blas.address,
+        },
+    };
+
+    let (as_instance_buffer, as_instance_mem) = vk.create_buffer(
+        std::mem::size_of::<vk::AccelerationStructureInstanceKHR>() as vk::DeviceSize,
+        vk::BufferUsageFlags::TRANSFER_DST
+            | vk::BufferUsageFlags::SHADER_DEVICE_ADDRESS
+            | vk::BufferUsageFlags::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_KHR,
+        vk::MemoryPropertyFlags::DEVICE_LOCAL,
+    );
+
+    let instances = [as_instance];
+    let (_, bytes, _) = unsafe { instances.align_to::<u8>() };
+    vk.upload_buffer(bytes, as_instance_buffer);
+
+    let address_info = vk::BufferDeviceAddressInfo {
+        buffer: as_instance_buffer,
+        ..Default::default()
+    };
+
+    let as_instance_address = unsafe { vk.device.get_buffer_device_address(&address_info) };
+
+    let top_geometry = vk::AccelerationStructureGeometryKHR {
+        geometry_type: vk::GeometryTypeKHR::INSTANCES,
+        geometry: vk::AccelerationStructureGeometryDataKHR {
+            instances: vk::AccelerationStructureGeometryInstancesDataKHR {
+                s_type: vk::StructureType::ACCELERATION_STRUCTURE_GEOMETRY_INSTANCES_DATA_KHR,
+                p_next: std::ptr::null(),
+                array_of_pointers: vk::FALSE,
+                data: vk::DeviceOrHostAddressConstKHR {
+                    device_address: as_instance_address,
+                },
+                ..Default::default()
+            },
+        },
+        flags: vk::GeometryFlagsKHR::OPAQUE,
+        ..Default::default()
+    };
+
+    let geometries = [top_geometry];
+    let mut top_build_info = vk::AccelerationStructureBuildGeometryInfoKHR {
+        ty: vk::AccelerationStructureTypeKHR::TOP_LEVEL,
+        flags: vk::BuildAccelerationStructureFlagsKHR::PREFER_FAST_TRACE,
+        mode: vk::BuildAccelerationStructureModeKHR::BUILD,
+        ..Default::default()
+    };
+    top_build_info = top_build_info.geometries(&geometries);
+
+    let mut size_info = vk::AccelerationStructureBuildSizesInfoKHR {
+        ..Default::default()
+    };
+
+    let instances_counts = [1];
+    unsafe {
+        as_device.get_acceleration_structure_build_sizes(
+            vk::AccelerationStructureBuildTypeKHR::DEVICE,
+            &top_build_info,
+            &instances_counts,
+            &mut size_info,
+        )
+    };
+
+    let (tlas_buffer, tlas_mem) = vk.create_buffer(
+        size_info.acceleration_structure_size,
+        vk::BufferUsageFlags::SHADER_DEVICE_ADDRESS
+            | vk::BufferUsageFlags::ACCELERATION_STRUCTURE_STORAGE_KHR,
+        vk::MemoryPropertyFlags::DEVICE_LOCAL,
+    );
+
+    let tlas_create_info = vk::AccelerationStructureCreateInfoKHR {
+        buffer: tlas_buffer,
+        size: size_info.acceleration_structure_size,
+        ty: vk::AccelerationStructureTypeKHR::TOP_LEVEL,
+        ..Default::default()
+    };
+
+    let tlas = unsafe {
+        as_device
+            .create_acceleration_structure(&tlas_create_info, None)
+            .unwrap()
+    };
+
+    let (scratch_buffer2, scratch_mem2) = vk.create_buffer(
+        size_info.build_scratch_size,
+        vk::BufferUsageFlags::SHADER_DEVICE_ADDRESS | vk::BufferUsageFlags::STORAGE_BUFFER,
+        vk::MemoryPropertyFlags::DEVICE_LOCAL,
+    );
+
+    let scratch_address_info2 = vk::BufferDeviceAddressInfo {
+        buffer: scratch_buffer2,
+        ..Default::default()
+    };
+
+    let scratch_address2 = unsafe { vk.device.get_buffer_device_address(&scratch_address_info2) };
+
+    top_build_info.dst_acceleration_structure = tlas;
+    top_build_info.scratch_data.device_address = scratch_address2;
+
+    let range_info2 = [vk::AccelerationStructureBuildRangeInfoKHR {
+        primitive_count: 1,
+        ..Default::default()
+    }];
+
+    let infos = [top_build_info];
+    let cmd = vk.begin_single_use_cmd();
+
+    unsafe { as_device.cmd_build_acceleration_structures(cmd, &infos, &[&range_info2]) };
+
+    vk.end_single_use_cmd(cmd);
+
+    unsafe {
+        vk.device.destroy_buffer(as_instance_buffer, None);
+        vk.device.free_memory(as_instance_mem, None);
+        vk.device.destroy_buffer(scratch_buffer2, None);
+        vk.device.free_memory(scratch_mem2, None);
+    }
+
+    VulkanAs {
+        acceleration_structure: tlas,
+        buffer: tlas_buffer,
+        memory: tlas_mem,
+        address: tlas_address,
     }
 }
