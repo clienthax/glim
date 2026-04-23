@@ -157,17 +157,17 @@ pub fn update_test_shader(vk: &VulkanContext, shader: &ComputeShader, binding0: 
 
 #[repr(C)]
 pub struct BakePushConstants {
-    vertices: *const Vertex,
-    indices: *const u32,
+    pub vertices: *const Vertex,
+    pub indices: *const u32,
 
-    lights: *const Light,
-    lights_count: u32,
-    pad0: f32,
+    pub lights: *const Light,
+    pub lights_count: u32,
+    pub pad0: u32,
 
-    sampled_index: u32,
-    width: u32,
-    height: u32,
-    pad1: f32,
+    pub sampled_index: u32,
+    pub width: u32,
+    pub height: u32,
+    pub pad1: u32,
 }
 
 pub fn load_bake_lights_shader(vk: &VulkanContext) -> ComputeShader {

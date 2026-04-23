@@ -19,9 +19,9 @@ RWTexture2D<float4> VisibilityBuffer;
 [[vk::binding(3, 0)]]
 Texture2D<float4> Albedo;
 
-[[vk::image_format("rgba32ui")]]
+[[vk::image_format("rgba32f")]]
 [[vk::binding(4, 0)]]
-RWTexture2D<uint4> Target0;
+RWTexture2D<float4> Target0;
 
 
 [[vk::push_constant]]

@@ -5,7 +5,10 @@ use ash::vk::{self, Handle};
 use glfw_sys::{GLFWwindow, glfwCreateWindowSurface};
 
 use crate::{
-    compute_shader::{ComputeShader, load_bake_lights_shader, update_bake_lights_shader},
+    bmp::save_bmp,
+    compute_shader::{
+        BakePushConstants, ComputeShader, load_bake_lights_shader, update_bake_lights_shader,
+    },
     graphics_shader::{VisibilityPushConstants, create_visibility_shader},
     lights::Light,
     mesh::{FfiMesh, GpuMesh, Mesh, VulkanAs, create_tlas, destroy_vulkan_as},
@@ -152,7 +155,7 @@ fn start_headless_bake(app: &mut Stilb) {
             | vk::ImageUsageFlags::TRANSFER_DST,
     );
 
-    let target0 = Texture2D::new(
+    let mut target0 = Texture2D::new(
         &app.vk,
         width,
         height,
@@ -178,7 +181,84 @@ fn start_headless_bake(app: &mut Stilb) {
         &scene.albedo,
         &scene.target0,
     );
-    // unsafe {}
+
+    let vk = &app.vk;
+    let cmd = vk.begin_single_use_cmd();
+
+    let push = BakePushConstants {
+        vertices: scene.mesh.vertex_address() as _,
+        indices: scene.mesh.index_address() as _,
+        lights: 0 as _,
+        lights_count: 0,
+        pad0: 0,
+        sampled_index: 0,
+        width,
+        height,
+        pad1: 0,
+    };
+
+    let constants_bytes = unsafe {
+        std::slice::from_raw_parts(
+            &push as *const BakePushConstants as *const u8,
+            std::mem::size_of::<BakePushConstants>(),
+        )
+    };
+
+    unsafe {
+        let barrier = scene.target0.barrier(
+            vk::ImageLayout::GENERAL,
+            vk::AccessFlags::default(),
+            vk::AccessFlags::SHADER_WRITE,
+        );
+
+        vk.device.cmd_pipeline_barrier(
+            cmd,
+            vk::PipelineStageFlags::TOP_OF_PIPE,
+            vk::PipelineStageFlags::COMPUTE_SHADER,
+            vk::DependencyFlags::empty(),
+            &[],
+            &[],
+            &[barrier],
+        );
+
+        vk.device.cmd_bind_pipeline(
+            cmd,
+            vk::PipelineBindPoint::COMPUTE,
+            app.bake_lights_shader.pipeline,
+        );
+
+        vk.device.cmd_bind_descriptor_sets(
+            cmd,
+            vk::PipelineBindPoint::COMPUTE,
+            app.bake_lights_shader.pipeline_layout,
+            0,
+            &[app.bake_lights_shader.descriptor_set],
+            &[],
+        );
+
+        vk.device.cmd_push_constants(
+            cmd,
+            app.bake_lights_shader.pipeline_layout,
+            vk::ShaderStageFlags::COMPUTE,
+            0,
+            &constants_bytes,
+        );
+
+        let groups_x = (scene.target0.width() + 7) / 8;
+        let groups_y = (scene.target0.height() + 7) / 8;
+        vk.device.cmd_dispatch(cmd, groups_x, groups_y, 1);
+    }
+
+    vk.end_single_use_cmd(cmd);
+
+    let pixels_read = scene.target0.read_pixels(&app.vk);
+    save_bmp(
+        "../temp/target0.bmp",
+        scene.target0.width(),
+        scene.target0.height(),
+        &pixels_read,
+    )
+    .unwrap();
 
     destroy_vulkan_as(&app.vk, &mut scene.tlas);
     scene.mesh.destroy(&app.vk);

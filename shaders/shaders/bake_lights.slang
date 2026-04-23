@@ -28,7 +28,7 @@ void main(uint3 threadID: SV_DispatchThreadID)
 
     result.rgb = surf.N;
 
-    Target0[coords] += 1;
+    Target0[coords] = float4(result.rgb, 1);
 
     // InterlockedAdd(Target0[coords].x, 1);
     // InterlockedAdd(Target0[coords].y, 1);
