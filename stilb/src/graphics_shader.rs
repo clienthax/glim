@@ -283,12 +283,13 @@ impl GraphicsShader {
 
 #[repr(C)]
 pub struct VisibilityPushConstants {
-    pub vertices: *const Vertex,
-    pub indices: *const u32,
+    pub vertices: vk::DeviceAddress,
+    pub indices: vk::DeviceAddress,
+
     pub width: u32,
     pub height: u32,
-    pub padding0: f32,
-    pub padding1: f32,
+    pub pad0: u32,
+    pub pad1: u32,
 }
 
 pub fn create_visibility_shader(vk: &mut VulkanContext, visibility: &Texture2D) -> GraphicsShader {

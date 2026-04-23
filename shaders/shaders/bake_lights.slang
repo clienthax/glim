@@ -26,7 +26,7 @@ void main(uint3 threadID: SV_DispatchThreadID)
 
     float4 result = 0;
 
-    result.rgb = surf.N;
+    result.rgb = surf.P;
 
     Target0[coords] = float4(result.rgb, 1);
 

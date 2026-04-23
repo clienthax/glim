@@ -30,6 +30,10 @@ mod vulkan_core;
 mod vulkan_swapchain;
 mod window;
 
+pub fn as_bytes<T>(v: &T) -> &[u8] {
+    unsafe { std::slice::from_raw_parts(v as *const T as *const u8, std::mem::size_of::<T>()) }
+}
+
 pub fn blit_with_shader(vk: &VulkanContext, cmd: vk::CommandBuffer, image: vk::ImageView) {
 
     // vk.device.bindre
@@ -82,20 +86,15 @@ fn rasterize_visibility(
     render_pass_begin = render_pass_begin.clear_values(&clear_values);
 
     let push = VisibilityPushConstants {
-        vertices: mesh.vertex_address() as _,
-        indices: mesh.index_address() as _,
+        vertices: mesh.vertex_address(),
+        indices: mesh.index_address(),
         width: visibility.width(),
         height: visibility.height(),
-        padding0: 0.0,
-        padding1: 0.0,
+        pad0: 0,
+        pad1: 0,
     };
 
-    let constants_bytes = unsafe {
-        std::slice::from_raw_parts(
-            &push as *const VisibilityPushConstants as *const u8,
-            std::mem::size_of::<VisibilityPushConstants>(),
-        )
-    };
+    let constants_bytes = as_bytes(&push);
 
     unsafe {
         vk.device
@@ -186,9 +185,9 @@ fn start_headless_bake(app: &mut Stilb) {
     let cmd = vk.begin_single_use_cmd();
 
     let push = BakePushConstants {
-        vertices: scene.mesh.vertex_address() as _,
-        indices: scene.mesh.index_address() as _,
-        lights: 0 as _,
+        vertices: scene.mesh.vertex_address(),
+        indices: scene.mesh.index_address(),
+        lights: 0,
         lights_count: 0,
         pad0: 0,
         sampled_index: 0,
@@ -197,12 +196,7 @@ fn start_headless_bake(app: &mut Stilb) {
         pad1: 0,
     };
 
-    let constants_bytes = unsafe {
-        std::slice::from_raw_parts(
-            &push as *const BakePushConstants as *const u8,
-            std::mem::size_of::<BakePushConstants>(),
-        )
-    };
+    let constants_bytes = as_bytes(&push);
 
     unsafe {
         let barrier = scene.target0.barrier(

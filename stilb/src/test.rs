@@ -232,12 +232,12 @@ mod tests {
         render_pass_begin = render_pass_begin.clear_values(&clear_values);
 
         let push = VisibilityPushConstants {
-            vertices: gpu_mesh.vertex_address() as _,
-            indices: gpu_mesh.index_address() as _,
+            vertices: gpu_mesh.vertex_address(),
+            indices: gpu_mesh.index_address(),
             width: visibility.width(),
             height: visibility.height(),
-            padding0: 0.0,
-            padding1: 0.0,
+            pad0: 0,
+            pad1: 0,
         };
 
         let constants_bytes = unsafe {
