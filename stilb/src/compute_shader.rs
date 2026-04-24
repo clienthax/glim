@@ -108,6 +108,7 @@ impl ComputeShader {
 pub struct InitFromCameraPushConstants {
     pub camera_position: Vector3,
     pub fov_half_tan: f32,
+
     pub camera_direction: Vector3,
     pub pad: u32,
 }
