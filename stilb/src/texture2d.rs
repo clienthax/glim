@@ -2,7 +2,7 @@ use std::ptr;
 
 use ash::vk::{self, Handle};
 
-use crate::vulkan_core::VulkanContext;
+use crate::vulkan_context::VulkanContext;
 
 pub struct Texture2D {
     format: vk::Format,

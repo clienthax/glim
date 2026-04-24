@@ -1,6 +1,6 @@
 use ash::vk::{self, Handle};
 
-use crate::vulkan_core::VulkanContext;
+use crate::vulkan_context::VulkanContext;
 
 pub struct SwapchainFrame {
     pub image_view: vk::ImageView,

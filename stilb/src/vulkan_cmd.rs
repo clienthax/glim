@@ -1,6 +1,6 @@
 use ash::vk;
 
-use crate::vulkan_core::VulkanContext;
+use crate::vulkan_context::VulkanContext;
 
 impl VulkanContext {
     pub fn begin_single_use_cmd(self: &Self) -> vk::CommandBuffer {

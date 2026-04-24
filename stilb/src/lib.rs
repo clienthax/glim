@@ -8,19 +8,18 @@ use glfw_sys::{
 };
 
 use crate::{
-    bmp::save_bmp,
     camera::Camera,
     compute_shader::{
-        BakePushConstants, ComputeShader, InitFromCameraPushConstants, load_bake_lights_shader,
-        load_init_from_camera_shader, update_bake_lights_shader, update_init_from_camera_shader,
+        BakePushConstants, ComputeShader, load_bake_lights_shader, load_init_from_camera_shader,
+        update_bake_lights_shader, update_init_from_camera_shader,
     },
     graphics_shader::{VisibilityPushConstants, create_visibility_shader},
     lights::Light,
     math::Vector3,
     mesh::{FfiMesh, GpuMesh, Mesh, VulkanAs, create_tlas},
     texture2d::Texture2D,
-    vulkan_core::{VulkanConfig, VulkanContext},
-    window::{initialize_window, platform_loop},
+    vulkan_context::{VulkanConfig, VulkanContext},
+    window::{initialize_window, update_camera},
 };
 
 mod bmp;
@@ -33,7 +32,7 @@ mod mesh;
 mod test;
 mod texture2d;
 mod vulkan_cmd;
-mod vulkan_core;
+mod vulkan_context;
 mod vulkan_swapchain;
 mod window;
 
@@ -54,6 +53,7 @@ pub struct Stilb {
     pub bake_shader: ComputeShader,
     pub init_from_camera_shader: ComputeShader,
     // pub bake_init_shader: ComputeShader,
+    pub preview_initialized: bool,
 }
 
 pub struct LightmapSettings {
@@ -190,8 +190,19 @@ fn init_from_camera(app: &mut Stilb, width: u32, height: u32) -> Texture2D {
     );
 
     update_init_from_camera_shader(vk, shader, app.tlas.acceleration_structure(), &visibility);
+    visibility
+}
 
-    let cmd = vk.begin_single_use_cmd();
+fn rasterize_visibility_from_camera(
+    app: &mut Stilb,
+    visibility: &mut Texture2D,
+    cmd: vk::CommandBuffer,
+) {
+    let width = app.config.preview_width;
+    let height = app.config.preview_height;
+
+    let vk = &mut app.vk;
+    let shader = &app.init_from_camera_shader;
 
     let barrier = visibility.barrier(
         vk::ImageLayout::GENERAL,
@@ -239,18 +250,7 @@ fn init_from_camera(app: &mut Stilb, width: u32, height: u32) -> Texture2D {
         vk.device.cmd_dispatch(cmd, groups_x, groups_y, 1);
     }
 
-    vk.end_single_use_cmd(cmd);
-
-    let pixels_read = visibility.read_pixels(&app.vk);
-    save_bmp(
-        "../temp/visibility.bmp",
-        visibility.width(),
-        visibility.height(),
-        &pixels_read,
-    )
-    .unwrap();
-
-    visibility
+    app.preview_initialized = true;
 }
 
 // fn initialize_rays(app: &mut Stilb) {}
@@ -297,6 +297,12 @@ fn bake_lightmap_group(app: &mut Stilb, group: &mut LightmapGroup) {
                     glfwSetWindowShouldClose(window, 1);
                 }
 
+                update_camera(app);
+
+                if !app.preview_initialized {
+                    sample_index = 0;
+                }
+
                 if sample_index < group.settings.max_samples {
                     group.push.sample_index = sample_index;
                     render_sample_camera(app, group);
@@ -314,14 +320,18 @@ fn bake_lightmap_group(app: &mut Stilb, group: &mut LightmapGroup) {
         }
     }
 
-    let pixels_read = group.diffuse_lightmap.read_pixels(&app.vk);
-    save_bmp(
-        "../temp/diffuse_lightmap.bmp",
-        group.diffuse_lightmap.width(),
-        group.diffuse_lightmap.height(),
-        &pixels_read,
-    )
-    .unwrap();
+    unsafe {
+        app.vk.device.device_wait_idle().unwrap();
+    }
+
+    // let pixels_read = group.diffuse_lightmap.read_pixels(&app.vk);
+    // save_bmp(
+    //     "../temp/diffuse_lightmap.bmp",
+    //     group.diffuse_lightmap.width(),
+    //     group.diffuse_lightmap.height(),
+    //     &pixels_read,
+    // )
+    // .unwrap();
 }
 
 fn render_sample_camera(app: &mut Stilb, group: &mut LightmapGroup) {
@@ -382,6 +392,11 @@ fn render_sample_camera(app: &mut Stilb, group: &mut LightmapGroup) {
             .device
             .begin_command_buffer(cmd, &begin_info)
             .unwrap();
+
+        if group.push.sample_index == 0 {
+            rasterize_visibility_from_camera(app, &mut group.visibility, cmd);
+            app.preview_initialized = true;
+        }
 
         {
             let barrier = group.diffuse_lightmap.barrier(
@@ -673,6 +688,7 @@ pub extern "C" fn app_initialize(app_config: StilbConfig) -> *mut Stilb {
         yaw: 0.0,
         pitch: 0.0,
         fov: 60.0,
+        last_cursor_pos: None,
     };
 
     camera.look_at(Vector3::ZERO);
@@ -691,6 +707,7 @@ pub extern "C" fn app_initialize(app_config: StilbConfig) -> *mut Stilb {
         groups: Vec::new(),
         camera,
         init_from_camera_shader,
+        preview_initialized: false,
     };
 
     Box::into_raw(Box::new(stilb))

@@ -5,6 +5,8 @@ pub struct Camera {
     pub yaw: f32,
     pub pitch: f32,
     pub fov: f32,
+
+    pub last_cursor_pos: Option<(f64, f64)>,
 }
 
 impl Camera {

@@ -1,6 +1,6 @@
 use ash::vk::{self, Handle};
 
-use crate::{math::*, vulkan_core::VulkanContext};
+use crate::{math::*, vulkan_context::VulkanContext};
 use core::slice;
 
 #[repr(C)]

@@ -5,7 +5,7 @@ use shaders::{
     get_visibility_fragment_shader, get_visibility_geometry_shader, get_visibility_vertex_shader,
 };
 
-use crate::{mesh::Vertex, texture2d::Texture2D, vulkan_core::VulkanContext};
+use crate::{mesh::Vertex, texture2d::Texture2D, vulkan_context::VulkanContext};
 
 pub struct GraphicsShader {
     vertex_module: vk::ShaderModule,

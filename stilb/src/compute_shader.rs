@@ -3,7 +3,7 @@ use std::ffi::CStr;
 use ash::vk::{self, Handle};
 use shaders::{get_bake_lights_shader, get_init_from_camera_shader, get_test_shader};
 
-use crate::{math::Vector3, texture2d::Texture2D, vulkan_core::VulkanContext};
+use crate::{math::Vector3, texture2d::Texture2D, vulkan_context::VulkanContext};
 
 pub struct ComputeShader {
     module: vk::ShaderModule,
