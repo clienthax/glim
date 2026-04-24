@@ -2,7 +2,10 @@ use std::ptr;
 
 use ash::vk::{self, Handle};
 
-use glfw_sys::{GLFWwindow, glfwCreateWindowSurface};
+use glfw_sys::{
+    GLFW_KEY_ESCAPE, GLFW_PRESS, GLFWwindow, glfwCreateWindowSurface, glfwGetKey, glfwPollEvents,
+    glfwSetWindowShouldClose, glfwWindowShouldClose,
+};
 
 use crate::{
     bmp::save_bmp,
@@ -48,7 +51,7 @@ pub struct Stilb {
 
     pub camera: Camera,
 
-    pub bake_lights_shader: ComputeShader,
+    pub bake_shader: ComputeShader,
     pub init_from_camera_shader: ComputeShader,
     // pub bake_init_shader: ComputeShader,
 }
@@ -266,7 +269,7 @@ fn start_bake(app: &mut Stilb, settings: LightmapSettings) {
 
     let mut group = create_lightmap_group(app, settings);
 
-    // bake_lightmap_group(app, &mut group);
+    bake_lightmap_group(app, &mut group);
 
     destroy_group(&app.vk, &mut group);
 }
@@ -274,16 +277,41 @@ fn start_bake(app: &mut Stilb, settings: LightmapSettings) {
 fn bake_lightmap_group(app: &mut Stilb, group: &mut LightmapGroup) {
     update_bake_lights_shader(
         &app.vk,
-        &app.bake_lights_shader,
+        &app.bake_shader,
         app.tlas.acceleration_structure(),
         &group.visibility,
         &group.albedo,
         &group.diffuse_lightmap,
     );
 
-    for i in 0..group.settings.max_samples {
-        group.push.sample_index = i as u32;
-        bake_sample(app, group);
+    if app.config.is_preview {
+        let window = app.window;
+
+        let mut sample_index: u32 = 0;
+
+        unsafe {
+            while glfwWindowShouldClose(window) == 0 {
+                glfwPollEvents();
+
+                if glfwGetKey(window, GLFW_KEY_ESCAPE) == GLFW_PRESS {
+                    glfwSetWindowShouldClose(window, 1);
+                }
+
+                if sample_index < group.settings.max_samples {
+                    group.push.sample_index = sample_index;
+                    render_sample_camera(app, group);
+                    sample_index += 1;
+                }
+            }
+        }
+    } else {
+        for i in 0..group.settings.max_samples {
+            group.push.sample_index = i as u32;
+
+            let cmd = app.vk.begin_single_use_cmd();
+            render_sample(app, cmd, group);
+            app.vk.end_single_use_cmd(cmd);
+        }
     }
 
     let pixels_read = group.diffuse_lightmap.read_pixels(&app.vk);
@@ -296,10 +324,180 @@ fn bake_lightmap_group(app: &mut Stilb, group: &mut LightmapGroup) {
     .unwrap();
 }
 
-fn bake_sample(app: &mut Stilb, group: &mut LightmapGroup) {
+fn render_sample_camera(app: &mut Stilb, group: &mut LightmapGroup) {
+    let frame_index = app.vk.swapchain.frame_index;
+
+    let frame = &app.vk.swapchain.frames[frame_index];
+
+    let width = app.config.preview_width;
+    let height = app.config.preview_height;
+
+    unsafe {
+        app.vk
+            .device
+            .wait_for_fences(&[frame.fence], true, u64::MAX)
+            .unwrap()
+    }
+
+    let (image_index, is_optimal) = unsafe {
+        app.vk
+            .swapchain_device
+            .acquire_next_image(
+                app.vk.swapchain.swapchain,
+                u64::MAX,
+                frame.image_available_semaphore,
+                vk::Fence::null(),
+            )
+            .unwrap()
+    };
+
+    // todo: handle is_optimal
+
+    let cmd = frame.command_buffer;
+
+    let begin_info = vk::CommandBufferBeginInfo {
+        flags: vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT,
+        ..Default::default()
+    };
+
+    let subresource_range = vk::ImageSubresourceRange {
+        aspect_mask: vk::ImageAspectFlags::COLOR,
+        base_mip_level: 0,
+        level_count: 1,
+        base_array_layer: 0,
+        layer_count: 1,
+    };
+
+    unsafe {
+        app.vk
+            .device
+            .reset_command_buffer(cmd, vk::CommandBufferResetFlags::empty())
+            .unwrap();
+
+        app.vk
+            .device
+            .begin_command_buffer(cmd, &begin_info)
+            .unwrap();
+
+        {
+            let barrier = group.diffuse_lightmap.barrier(
+                vk::ImageLayout::GENERAL,
+                vk::AccessFlags::default(),
+                vk::AccessFlags::SHADER_WRITE,
+            );
+
+            app.vk.device.cmd_pipeline_barrier(
+                cmd,
+                vk::PipelineStageFlags::TOP_OF_PIPE,
+                vk::PipelineStageFlags::COMPUTE_SHADER,
+                vk::DependencyFlags::empty(),
+                &[],
+                &[],
+                &[barrier],
+            );
+        }
+
+        {
+            render_sample(app, cmd, group);
+        }
+
+        let swapchain_image = &app.vk.swapchain.frames[image_index as usize];
+
+        {
+            let barrier = group.diffuse_lightmap.barrier(
+                vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
+                vk::AccessFlags::SHADER_WRITE,
+                vk::AccessFlags::SHADER_READ,
+            );
+
+            let swapchain_barrier = vk::ImageMemoryBarrier {
+                src_access_mask: vk::AccessFlags::empty(),
+                dst_access_mask: vk::AccessFlags::TRANSFER_WRITE,
+                old_layout: vk::ImageLayout::UNDEFINED,
+                new_layout: vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+                image: swapchain_image.image,
+                subresource_range,
+                ..Default::default()
+            };
+
+            app.vk.device.cmd_pipeline_barrier(
+                cmd,
+                vk::PipelineStageFlags::COMPUTE_SHADER,
+                vk::PipelineStageFlags::TRANSFER,
+                vk::DependencyFlags::empty(),
+                &[],
+                &[],
+                &[barrier, swapchain_barrier],
+            );
+        }
+
+        {
+            let offset0 = vk::Offset3D { x: 0, y: 0, z: 1 };
+            let offset1 = vk::Offset3D {
+                x: width as i32,
+                y: height as i32,
+                z: 1,
+            };
+
+            let blit = vk::ImageBlit {
+                src_subresource: vk::ImageSubresourceLayers {
+                    aspect_mask: vk::ImageAspectFlags::COLOR,
+                    mip_level: 0,
+                    base_array_layer: 0,
+                    layer_count: 1,
+                },
+                src_offsets: [offset0, offset1],
+                dst_subresource: vk::ImageSubresourceLayers {
+                    aspect_mask: vk::ImageAspectFlags::COLOR,
+                    mip_level: 0,
+                    base_array_layer: 0,
+                    layer_count: 1,
+                },
+                dst_offsets: [offset0, offset1],
+            };
+
+            app.vk.device.cmd_blit_image(
+                cmd,
+                group.diffuse_lightmap.image(),
+                vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
+                swapchain_image.image,
+                vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+                &[blit],
+                vk::Filter::NEAREST,
+            );
+        }
+
+        {
+            let swapchain_barrier = vk::ImageMemoryBarrier {
+                src_access_mask: vk::AccessFlags::TRANSFER_WRITE,
+                dst_access_mask: vk::AccessFlags::empty(),
+                old_layout: vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+                new_layout: vk::ImageLayout::PRESENT_SRC_KHR,
+                image: swapchain_image.image,
+                subresource_range,
+                ..Default::default()
+            };
+
+            app.vk.device.cmd_pipeline_barrier(
+                cmd,
+                vk::PipelineStageFlags::TRANSFER,
+                vk::PipelineStageFlags::BOTTOM_OF_PIPE,
+                vk::DependencyFlags::empty(),
+                &[],
+                &[],
+                &[swapchain_barrier],
+            );
+        }
+
+        app.vk.device.end_command_buffer(cmd).unwrap();
+    };
+
+    // let fence = render_sample(app, group);
+}
+
+fn render_sample(app: &mut Stilb, cmd: vk::CommandBuffer, group: &mut LightmapGroup) {
     let vk = &app.vk;
-    let cmd = vk.begin_single_use_cmd();
-    let shader = &app.bake_lights_shader;
+    let shader = &app.bake_shader;
 
     let constants_bytes = as_bytes(&group.push);
 
@@ -307,6 +505,12 @@ fn bake_sample(app: &mut Stilb, group: &mut LightmapGroup) {
         vk::ImageLayout::GENERAL,
         vk::AccessFlags::default(),
         vk::AccessFlags::SHADER_WRITE,
+    );
+
+    let barrier2 = group.visibility.barrier(
+        vk::ImageLayout::GENERAL,
+        vk::AccessFlags::default(),
+        vk::AccessFlags::SHADER_READ,
     );
 
     let groups_x = (group.settings.width + 7) / 8;
@@ -320,7 +524,7 @@ fn bake_sample(app: &mut Stilb, group: &mut LightmapGroup) {
             vk::DependencyFlags::empty(),
             &[],
             &[],
-            &[barrier],
+            &[barrier, barrier2],
         );
 
         vk.device
@@ -345,8 +549,6 @@ fn bake_sample(app: &mut Stilb, group: &mut LightmapGroup) {
 
         vk.device.cmd_dispatch(cmd, groups_x, groups_y, 1);
     }
-
-    vk.end_single_use_cmd(cmd);
 }
 
 fn create_lightmap_group(app: &mut Stilb, settings: LightmapSettings) -> LightmapGroup {
@@ -432,7 +634,7 @@ pub extern "C" fn app_initialize(app_config: StilbConfig) -> *mut Stilb {
     let bake_lights_shader = load_bake_lights_shader(&vk);
 
     let mut camera = Camera {
-        position: Vector3::new(5.1, 1.0, 5.0),
+        position: Vector3::new(0.0, 1.0, -5.0),
         yaw: 0.0,
         pitch: 0.0,
         fov: 60.0,
@@ -448,7 +650,7 @@ pub extern "C" fn app_initialize(app_config: StilbConfig) -> *mut Stilb {
         window: window,
         config: app_config,
         cpu_lights: Vec::new(),
-        bake_lights_shader,
+        bake_shader: bake_lights_shader,
         gpu_mesh: GpuMesh::null(),
         tlas: VulkanAs::null(),
         groups: Vec::new(),
@@ -500,7 +702,7 @@ pub extern "C" fn app_deinitialize(app: *mut Stilb) {
         // Take ownership back from the pointer and let Box drop it
         let mut app = unsafe { Box::from_raw(app) };
 
-        app.bake_lights_shader.destroy(&app.vk);
+        app.bake_shader.destroy(&app.vk);
         app.gpu_mesh.destroy(&app.vk);
         app.tlas.destroy(&app.vk);
         app.init_from_camera_shader.destroy(&app.vk);

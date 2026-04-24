@@ -32,7 +32,9 @@ void main(uint3 threadID: SV_DispatchThreadID)
 
     float4 visibility = VisibilityBuffer[coords];
 
-    if (visibility.a == 0)
+    uint encoded = asuint(visibility.a);
+
+    if (encoded == 0)
     {
         return;
     }

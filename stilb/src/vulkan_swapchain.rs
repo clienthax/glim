@@ -4,6 +4,7 @@ use crate::vulkan_core::VulkanContext;
 
 pub struct SwapchainFrame {
     pub image_view: vk::ImageView,
+    pub image: vk::Image,
     pub command_buffer: vk::CommandBuffer,
     pub image_available_semaphore: vk::Semaphore,
     pub render_finished_semaphore: vk::Semaphore,
@@ -12,6 +13,7 @@ pub struct SwapchainFrame {
 
 pub struct SwapchainData {
     pub swapchain: vk::SwapchainKHR,
+    pub frame_index: usize,
     pub frames: Vec<SwapchainFrame>,
 }
 
@@ -185,12 +187,17 @@ impl VulkanContext {
                 image_available_semaphore,
                 render_finished_semaphore,
                 fence,
+                image,
             };
 
             frames.push(frame);
         }
 
-        self.swapchain = SwapchainData { frames, swapchain };
+        self.swapchain = SwapchainData {
+            frames,
+            swapchain,
+            frame_index: 0,
+        };
     }
 
     pub fn destroy_swapchain(&mut self) {

@@ -45,11 +45,15 @@ void main(uint3 threadID: SV_DispatchThreadID)
     ray.tMin = 0.001;
     ray.tMax = RAY_MAX;
 
-    float4 result = float4(0, 0, 0, 1);
+    float4 result;
     Hit hit;
     if (TraceRay(ray, hit))
     {
         result = EncodeVisibilityBuffer(hit.bary, hit.primitiveID, true, false);
+    }
+    else
+    {
+        result = EncodeVisibilityBuffer(float2(0, 0), 0, false, false);
     }
 
     VisibilityBuffer[coords] = result;

@@ -25,7 +25,7 @@ mod tests {
 
         assert_eq!(bytes.len() % std::mem::size_of::<Vertex>(), 0);
 
-        let vertices: Vec<Vertex> = unsafe {
+        let mut vertices: Vec<Vertex> = unsafe {
             let (prefix, mid, suffix) = bytes.align_to::<Vertex>();
             if !prefix.is_empty() || !suffix.is_empty() {
                 // If it wasn't perfectly aligned, we have to copy it manually
@@ -42,6 +42,18 @@ mod tests {
                 mid.to_vec()
             }
         };
+
+        for vert in &mut vertices {
+            let temp = vert.position.y;
+            vert.position.y = vert.position.z;
+            vert.position.z = temp;
+            vert.position.x = -vert.position.x;
+
+            let temp = vert.normal.y;
+            vert.normal.y = vert.normal.z;
+            vert.normal.z = temp;
+            vert.normal.x = -vert.normal.x;
+        }
 
         let indices: Vec<u32> = (0..vertices.len() as u32).collect();
 

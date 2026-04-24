@@ -16,10 +16,10 @@ pub struct FfiMesh {
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct Vertex {
-    position: Vector3,
-    uv_x: f32,
-    normal: Vector3,
-    uv_y: f32,
+    pub position: Vector3,
+    pub uv_x: f32,
+    pub normal: Vector3,
+    pub uv_y: f32,
 }
 
 #[derive(Debug)]
