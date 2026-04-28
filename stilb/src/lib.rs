@@ -207,26 +207,27 @@ fn rasterize_visibility_from_camera(
     let vk = &mut app.vk;
     let shader = &app.init_from_camera_shader;
 
-    let barrier = visibility.barrier(
-        vk::ImageLayout::GENERAL,
-        vk::AccessFlags::default(),
-        vk::AccessFlags::SHADER_WRITE,
-    );
-
     let push = app.camera.make_push_constants();
 
     let constants_bytes = as_bytes(&push);
 
     unsafe {
-        vk.device.cmd_pipeline_barrier(
-            cmd,
-            vk::PipelineStageFlags::TOP_OF_PIPE,
-            vk::PipelineStageFlags::COMPUTE_SHADER,
-            vk::DependencyFlags::empty(),
-            &[],
-            &[],
-            &[barrier],
-        );
+        if visibility.layout() != vk::ImageLayout::GENERAL {
+            let barrier = visibility.barrier(
+                vk::ImageLayout::GENERAL,
+                vk::AccessFlags::default(),
+                vk::AccessFlags::SHADER_WRITE,
+            );
+            vk.device.cmd_pipeline_barrier(
+                cmd,
+                vk::PipelineStageFlags::TOP_OF_PIPE,
+                vk::PipelineStageFlags::COMPUTE_SHADER,
+                vk::DependencyFlags::empty(),
+                &[],
+                &[],
+                &[barrier],
+            );
+        }
 
         vk.device
             .cmd_bind_pipeline(cmd, vk::PipelineBindPoint::COMPUTE, shader.pipeline);
@@ -637,25 +638,25 @@ fn render_sample(app: &mut Stilb, cmd: vk::CommandBuffer, group: &mut LightmapGr
     //     vk::AccessFlags::SHADER_WRITE,
     // );
 
-    let barrier2 = group.visibility.barrier(
-        vk::ImageLayout::GENERAL,
-        vk::AccessFlags::default(),
-        vk::AccessFlags::SHADER_READ,
-    );
+    // let barrier2 = group.visibility.barrier(
+    //     vk::ImageLayout::GENERAL,
+    //     vk::AccessFlags::default(),
+    //     vk::AccessFlags::SHADER_READ,
+    // );
 
     let groups_x = (group.settings.width + 7) / 8;
     let groups_y = (group.settings.height + 7) / 8;
 
     unsafe {
-        vk.device.cmd_pipeline_barrier(
-            cmd,
-            vk::PipelineStageFlags::TOP_OF_PIPE,
-            vk::PipelineStageFlags::COMPUTE_SHADER,
-            vk::DependencyFlags::empty(),
-            &[],
-            &[],
-            &[barrier2],
-        );
+        // vk.device.cmd_pipeline_barrier(
+        //     cmd,
+        //     vk::PipelineStageFlags::TOP_OF_PIPE,
+        //     vk::PipelineStageFlags::COMPUTE_SHADER,
+        //     vk::DependencyFlags::empty(),
+        //     &[],
+        //     &[],
+        //     &[barrier2],
+        // );
 
         vk.device
             .cmd_bind_pipeline(cmd, vk::PipelineBindPoint::COMPUTE, shader.pipeline);

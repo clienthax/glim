@@ -371,8 +371,8 @@ mod tests {
         let settings = LightmapSettings {
             width: app.config.preview_width,
             height: app.config.preview_height,
-            bounce_count: 3,
-            max_samples: 512,
+            bounce_count: 5,
+            max_samples: 64,
             denoise: false,
         };
 

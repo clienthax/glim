@@ -155,6 +155,7 @@ void main(uint3 threadID: SV_DispatchThreadID)
 
             float2 uv = surfaceBounce.uv;
             float3 bounceAlbedo = Albedo[uint2(uv * (float2)resolution)].rgb;
+            bounceAlbedo = 1;
 
             throughput *= bounceAlbedo;
 

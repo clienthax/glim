@@ -301,6 +301,15 @@ impl Texture2D {
     ) -> vk::ImageMemoryBarrier<'a> {
         // assert!(self.layout != new_layout);
 
+        if self.layout == new_layout {
+            panic!(
+                "texture {:#x} layout already correct: {:?} -> {:?}",
+                self.image().as_raw(),
+                self.layout,
+                new_layout
+            )
+        }
+
         let subresource_range = vk::ImageSubresourceRange {
             aspect_mask: vk::ImageAspectFlags::COLOR,
             base_mip_level: 0,
