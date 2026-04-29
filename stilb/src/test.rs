@@ -409,7 +409,7 @@ mod tests {
             width: w,
             height: h,
             bounce_count: 2,
-            max_samples: 64,
+            max_samples: 256,
             denoise: false,
             emission_pixels,
         };

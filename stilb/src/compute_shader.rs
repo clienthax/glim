@@ -288,6 +288,15 @@ pub fn load_bake_lights_shader(vk: &VulkanContext, use_camera: bool) -> ComputeS
         ..Default::default()
     });
 
+    // Sampler
+    bindings.push(vk::DescriptorSetLayoutBinding {
+        binding: 6,
+        descriptor_type: vk::DescriptorType::SAMPLER,
+        descriptor_count: 1,
+        stage_flags: vk::ShaderStageFlags::COMPUTE,
+        ..Default::default()
+    });
+
     let size = std::mem::size_of::<u32>();
     let map_entries = [vk::SpecializationMapEntry {
         constant_id: 0,
@@ -326,6 +335,7 @@ pub fn update_bake_lights_shader(
     albedo: &Texture2D,
     emission: &Texture2D,
     lightmap_diffuse: &Texture2D,
+    sampler: vk::Sampler,
 ) {
     let mut descriptor_writes = Vec::new();
 
@@ -381,6 +391,20 @@ pub fn update_bake_lights_shader(
         dst_set: shader.descriptor_set,
         dst_binding: 5,
         descriptor_type: vk::DescriptorType::SAMPLED_IMAGE,
+        ..Default::default()
+    };
+    write = write.image_info(&info);
+    descriptor_writes.push(write);
+
+    let info = [vk::DescriptorImageInfo {
+        sampler,
+        image_view: vk::ImageView::null(),
+        image_layout: vk::ImageLayout::UNDEFINED,
+    }];
+    let mut write = vk::WriteDescriptorSet {
+        dst_set: shader.descriptor_set,
+        dst_binding: 6,
+        descriptor_type: vk::DescriptorType::SAMPLER,
         ..Default::default()
     };
     write = write.image_info(&info);

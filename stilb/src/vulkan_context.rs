@@ -266,6 +266,11 @@ impl VulkanContext {
             pool_sizes.push(as_structure_pool);
         }
 
+        pool_sizes.push(vk::DescriptorPoolSize {
+            descriptor_count: 1,
+            ty: vk::DescriptorType::SAMPLER,
+        });
+
         let descriptor_pool_info = vk::DescriptorPoolCreateInfo::default()
             .pool_sizes(&mut pool_sizes)
             .max_sets(5);

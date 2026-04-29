@@ -56,6 +56,8 @@ pub struct Stilb {
     pub init_from_camera_shader: ComputeShader,
     // pub bake_init_shader: ComputeShader,
     pub preview_initialized: bool,
+
+    pub sampler_bilinear_clamp: vk::Sampler,
 }
 
 #[derive(Clone, Debug)]
@@ -762,6 +764,7 @@ fn create_lightmap_group(app: &mut Stilb, settings: LightmapSettings) -> Lightma
         &albedo,
         &emission,
         &diffuse_lightmap,
+        app.sampler_bilinear_clamp,
     );
 
     println!("visibility: {:#x}", visibility.image().as_raw());
@@ -862,6 +865,23 @@ pub extern "C" fn app_initialize(app_config: StilbConfig) -> *mut Stilb {
         address: 0,
     };
 
+    let sampler_info = vk::SamplerCreateInfo::default()
+        .mag_filter(vk::Filter::LINEAR)
+        .min_filter(vk::Filter::LINEAR)
+        .mipmap_mode(vk::SamplerMipmapMode::NEAREST)
+        .address_mode_u(vk::SamplerAddressMode::CLAMP_TO_EDGE)
+        .address_mode_v(vk::SamplerAddressMode::CLAMP_TO_EDGE)
+        .address_mode_w(vk::SamplerAddressMode::CLAMP_TO_EDGE)
+        .mip_lod_bias(0.0)
+        .anisotropy_enable(false)
+        .compare_enable(false)
+        .min_lod(0.0)
+        .max_lod(vk::LOD_CLAMP_NONE)
+        .border_color(vk::BorderColor::FLOAT_OPAQUE_BLACK)
+        .unnormalized_coordinates(false);
+
+    let sampler_bilinear_clamp = unsafe { vk.device.create_sampler(&sampler_info, None).unwrap() };
+
     let stilb = Stilb {
         vk,
         cpu_meshes: Vec::new(),
@@ -876,6 +896,7 @@ pub extern "C" fn app_initialize(app_config: StilbConfig) -> *mut Stilb {
         init_from_camera_shader,
         preview_initialized: false,
         gpu_lights,
+        sampler_bilinear_clamp,
     };
 
     Box::into_raw(Box::new(stilb))
@@ -921,6 +942,12 @@ pub extern "C" fn app_deinitialize(app: *mut Stilb) {
         if app.gpu_lights.address != 0 {
             app.gpu_lights.destroy(&app.vk);
         }
+
+        unsafe {
+            app.vk
+                .device
+                .destroy_sampler(app.sampler_bilinear_clamp, None)
+        };
 
         println!("Stilb destroyed");
     }
