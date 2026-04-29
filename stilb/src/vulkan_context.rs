@@ -58,11 +58,11 @@ impl VulkanContext {
     ) -> Self {
         let entry = ash::Entry::linked();
 
-        let app_name = c"stilb";
-        let validation_layer_name = c"VK_LAYER_KHRONOS_validation";
+        const APP_NAME: &CStr = c"stilb";
+        const VALIDATION_LAYER_NAME: &CStr = c"VK_LAYER_KHRONOS_validation";
 
         let application_info = vk::ApplicationInfo {
-            p_application_name: app_name.as_ptr(),
+            p_application_name: APP_NAME.as_ptr(),
             application_version: 1,
             engine_version: 1,
             api_version: vk::API_VERSION_1_3,
@@ -74,7 +74,7 @@ impl VulkanContext {
 
         if config.enable_validation_layers {
             extensions.push(vk::EXT_DEBUG_UTILS_NAME.as_ptr());
-            layers.push(validation_layer_name.as_ptr());
+            layers.push(VALIDATION_LAYER_NAME.as_ptr());
         }
 
         for ext in &config.window_extensions {
@@ -458,18 +458,28 @@ fn find_queue_families(
         unsafe { instance.get_physical_device_queue_family_properties(physical_device) };
 
     for (i, prop) in properties.iter().enumerate() {
-        if prop.queue_flags.contains(vk::QueueFlags::COMPUTE) {
+        // if prop.queue_flags.contains(vk::QueueFlags::COMPUTE) {
+        //     compute = Some(i as u32);
+        // }
+
+        // if prop.queue_flags.contains(vk::QueueFlags::GRAPHICS) {
+        //     graphics = Some(i as u32);
+
+        //     // todo: find present queue
+        //     present = Some(i as u32);
+        // }
+
+        // if graphics.is_some() && compute.is_some() && present.is_some() {
+        //     break;
+        // }
+
+        if prop.queue_flags.contains(vk::QueueFlags::COMPUTE)
+            && prop.queue_flags.contains(vk::QueueFlags::GRAPHICS)
+        {
             compute = Some(i as u32);
-        }
-
-        if prop.queue_flags.contains(vk::QueueFlags::GRAPHICS) {
-            graphics = Some(i as u32);
-
-            // todo: find present queue
             present = Some(i as u32);
-        }
-
-        if graphics.is_some() && compute.is_some() && present.is_some() {
+            graphics = Some(i as u32);
+            // todo: find present queue
             break;
         }
     }

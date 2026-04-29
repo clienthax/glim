@@ -9,6 +9,6 @@ crate-type = ["cdylib", "rlib"]
 [dependencies]
 ash = { version = "0.38", default-features = false, features = ["linked", "std", "debug"] }
 # ash-window = "0.13"
-glfw-sys = { version = "8", default-features = false, features = ["prebuilt-libs"] }
+glfw-sys = { version = "8", default-features = false, features = ["prebuilt-libs", "native-handles"] }
 image = "0.25.10"
 shaders = { path = "../shaders" }

@@ -8,11 +8,11 @@ use glfw_sys::*;
 use crate::{Stilb, StilbConfig, math::Vector3, vulkan_context::VulkanConfig};
 
 pub fn create_window(width: u32, height: u32) -> *mut GLFWwindow {
-    const TITLE: &CStr = c"Stilb Preview";
+    const TITLE: &CStr = c"Lightmap Preview";
     let width = width as c_int;
     let height = height as c_int;
 
-    unsafe {
+    let window = unsafe {
         let init = glfwInit();
         assert!(init == GLFW_TRUE);
 
@@ -26,7 +26,15 @@ pub fn create_window(width: u32, height: u32) -> *mut GLFWwindow {
             ptr::null_mut(),
             ptr::null_mut(),
         )
+    };
+
+    #[cfg(target_os = "windows")]
+    {
+        let hwnd = unsafe { glfwGetWin32Window(window) };
+        dark_titlebar::set_dark_titlebar(hwnd);
     }
+
+    window
 }
 
 pub fn initialize_window(
@@ -125,11 +133,11 @@ pub fn update_camera(app: &mut Stilb, delta_time: f32) {
             camera_moved = true;
         }
         if glfwGetKey(window, GLFW_KEY_E) == GLFW_PRESS {
-            direction = direction + Vector3::new(0.0, 1.0, 0.0);
+            direction = direction + Vector3::UP;
             camera_moved = true;
         }
         if glfwGetKey(window, GLFW_KEY_Q) == GLFW_PRESS {
-            direction = direction - Vector3::new(0.0, 1.0, 0.0);
+            direction = direction - Vector3::UP;
             camera_moved = true;
         }
 
@@ -140,5 +148,34 @@ pub fn update_camera(app: &mut Stilb, delta_time: f32) {
 
     if camera_moved {
         app.preview_initialized = false;
+    }
+}
+
+#[cfg(target_os = "windows")]
+mod dark_titlebar {
+    use std::ffi::c_void;
+
+    #[link(name = "dwmapi")]
+    unsafe extern "system" {
+        fn DwmSetWindowAttribute(
+            hwnd: *mut c_void,
+            dw_attribute: u32,
+            pv_attribute: *const c_void,
+            cb_attribute: u32,
+        ) -> i32;
+    }
+
+    const DWMWA_USE_IMMERSIVE_DARK_MODE: u32 = 20;
+
+    pub fn set_dark_titlebar(hwnd: *mut c_void) {
+        unsafe {
+            let value: u32 = 1;
+            DwmSetWindowAttribute(
+                hwnd,
+                DWMWA_USE_IMMERSIVE_DARK_MODE,
+                &value as *const u32 as *const c_void,
+                std::mem::size_of::<u32>() as u32,
+            );
+        }
     }
 }

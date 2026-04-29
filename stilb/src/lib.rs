@@ -307,6 +307,7 @@ fn start_bake(app: &mut Stilb, settings: LightmapSettings) {
     assert!(app.cpu_meshes.len() > 0);
 
     app.gpu_mesh = GpuMesh::new(&app.vk, &app.cpu_meshes[0]);
+    app.cpu_meshes = Vec::new();
 
     let mesh::AccelerationStructureType::RayQuery(blas) = &app.gpu_mesh.acceleration_structure
     else {
