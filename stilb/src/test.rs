@@ -336,6 +336,18 @@ mod tests {
         app_deinitialize(app);
     }
 
+    pub fn load_tga(path: &str) -> std::io::Result<(u32, u32, Vec<f32>)> {
+        let img = image::open(path)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?
+            .to_rgba8();
+
+        let width = img.width();
+        let height = img.height();
+        let pixels = img.into_raw().iter().map(|&b| b as f32 / 255.0).collect();
+
+        Ok((width, height, pixels))
+    }
+
     #[test]
     fn test_preview() {
         let config = StilbConfig {
@@ -351,51 +363,55 @@ mod tests {
 
         app.cpu_meshes.push(mesh);
 
-        app.cpu_lights.push(Light {
-            ty: lights::LightType::Point,
-            position: Vector3 {
-                x: 0.0,
-                y: 1.0,
-                z: 0.0,
-            },
-            direction: Vector3::ZERO,
-            range: 10.0,
-            color: Vector3::new(2.0, 0.0, 0.0),
-            shadow_range_or_angle: 0.01,
-        });
+        // app.cpu_lights.push(Light {
+        //     ty: lights::LightType::Point,
+        //     position: Vector3 {
+        //         x: 0.0,
+        //         y: 1.0,
+        //         z: 0.0,
+        //     },
+        //     direction: Vector3::ZERO,
+        //     range: 10.0,
+        //     color: Vector3::new(1.0, 1.0, 1.0) * 0.1,
+        //     shadow_range_or_angle: 0.01,
+        // });
 
-        app.cpu_lights.push(Light {
-            ty: lights::LightType::Point,
-            position: Vector3 {
-                x: 0.0,
-                y: 1.2,
-                z: 0.0,
-            },
-            direction: Vector3::ZERO,
-            range: 10.0,
-            color: Vector3::new(0.0, 2.0, 0.0),
-            shadow_range_or_angle: 0.01,
-        });
+        // app.cpu_lights.push(Light {
+        //     ty: lights::LightType::Point,
+        //     position: Vector3 {
+        //         x: 0.0,
+        //         y: 1.2,
+        //         z: 0.0,
+        //     },
+        //     direction: Vector3::ZERO,
+        //     range: 10.0,
+        //     color: Vector3::new(0.0, 2.0, 0.0),
+        //     shadow_range_or_angle: 0.01,
+        // });
 
-        app.cpu_lights.push(Light {
-            ty: lights::LightType::Point,
-            position: Vector3 {
-                x: 0.0,
-                y: 1.1,
-                z: 0.0,
-            },
-            direction: Vector3::ZERO,
-            range: 10.0,
-            color: Vector3::new(0.0, 0.0, 2.0),
-            shadow_range_or_angle: 0.01,
-        });
+        // app.cpu_lights.push(Light {
+        //     ty: lights::LightType::Point,
+        //     position: Vector3 {
+        //         x: 0.0,
+        //         y: 1.1,
+        //         z: 0.0,
+        //     },
+        //     direction: Vector3::ZERO,
+        //     range: 10.0,
+        //     color: Vector3::new(0.0, 0.0, 2.0),
+        //     shadow_range_or_angle: 0.01,
+        // });
+
+        let (w, h, emission_pixels) =
+            load_tga("D:\\Dev\\stilb_rs\\textures\\emission.tga").unwrap();
 
         let settings = LightmapSettings {
-            width: 256,
-            height: 256,
+            width: w,
+            height: h,
             bounce_count: 2,
             max_samples: 64,
             denoise: false,
+            emission_pixels,
         };
 
         app.groups.push(settings);

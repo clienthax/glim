@@ -67,6 +67,7 @@ pub struct LightmapSettings {
     pub bounce_count: u32,
 
     pub denoise: bool,
+    pub emission_pixels: Vec<f32>,
 }
 
 pub struct LightmapGroup {
@@ -699,7 +700,7 @@ fn create_lightmap_group(app: &mut Stilb, settings: LightmapSettings) -> Lightma
         init_from_bake(app, settings.width, settings.height)
     };
 
-    println!("creating lightmap group {:?}", &settings);
+    // println!("creating lightmap group {:?}", &settings);
 
     let mut albedo = Texture2D::new(
         &app.vk,
@@ -720,6 +721,10 @@ fn create_lightmap_group(app: &mut Stilb, settings: LightmapSettings) -> Lightma
             | vk::ImageUsageFlags::TRANSFER_SRC
             | vk::ImageUsageFlags::TRANSFER_DST,
     );
+
+    if settings.emission_pixels.len() > 0 {
+        emission.set_pixels(&app.vk, &settings.emission_pixels);
+    }
 
     let (target_width, target_height) = if app.config.is_preview {
         (app.config.preview_width, app.config.preview_height)
@@ -770,10 +775,6 @@ fn create_lightmap_group(app: &mut Stilb, settings: LightmapSettings) -> Lightma
             float32: [1.0, 1.0, 1.0, 1.0],
         };
         clear_texture(app, &mut albedo, cmd, clear);
-        let clear = vk::ClearColorValue {
-            float32: [0.0, 0.0, 0.0, 0.0],
-        };
-        clear_texture(app, &mut emission, cmd, clear);
 
         let barrier = albedo.barrier(
             vk::ImageLayout::GENERAL,
@@ -894,12 +895,14 @@ pub extern "C" fn add_mesh(stilb: *mut Stilb, raw: FfiMesh) {
 pub extern "C" fn app_run(app: *mut Stilb) {
     let app = unsafe { &mut *app };
 
-    assert!(app.cpu_lights.len() > 0);
+    // assert!(app.cpu_lights.len() > 0);
 
     let settings = app.groups[0].clone();
 
-    let gpu_lights = GpuLights::new(&app.vk, &app.cpu_lights);
-    app.gpu_lights = gpu_lights;
+    if app.cpu_lights.len() > 0 {
+        let gpu_lights = GpuLights::new(&app.vk, &app.cpu_lights);
+        app.gpu_lights = gpu_lights;
+    }
 
     start_bake(app, settings);
 }
@@ -914,7 +917,10 @@ pub extern "C" fn app_deinitialize(app: *mut Stilb) {
         app.gpu_mesh.destroy(&app.vk);
         app.tlas.destroy(&app.vk);
         app.init_from_camera_shader.destroy(&app.vk);
-        app.gpu_lights.destroy(&app.vk);
+
+        if app.gpu_lights.address != 0 {
+            app.gpu_lights.destroy(&app.vk);
+        }
 
         println!("Stilb destroyed");
     }
