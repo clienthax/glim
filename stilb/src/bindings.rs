@@ -32,7 +32,7 @@ pub extern "C" fn app_add_light(app: *mut Stilb, light: Light) {
 pub extern "C" fn app_add_lightmap_group(
     app: *mut Stilb,
     settings: LightmapSettings,
-    albedo_pixels: *const f32,
+    albedo_pixels: *const u8,
     albedo_pixels_length: u32,
     emission_pixels: *const f32,
     emission_pixels_length: u32,

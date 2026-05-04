@@ -852,11 +852,10 @@ fn update_render_target(app: &mut Stilb, settings: &LightmapSettings) {
 }
 
 impl LightmapGroup {
-    // todo: albedo doesnt need f32
     fn new(
         app: &mut Stilb,
         settings: LightmapSettings,
-        albedo_pixels: &[f32],
+        albedo_pixels: &[u8],
         emission_pixels: &[f32],
     ) -> LightmapGroup {
         // println!("creating lightmap group {:?}", &settings);
@@ -865,7 +864,7 @@ impl LightmapGroup {
             &app.vk,
             settings.width,
             settings.height,
-            vk::Format::R32G32B32A32_SFLOAT,
+            vk::Format::R8G8B8A8_UNORM,
             vk::ImageUsageFlags::SAMPLED
                 | vk::ImageUsageFlags::TRANSFER_SRC
                 | vk::ImageUsageFlags::TRANSFER_DST,

@@ -200,6 +200,7 @@ impl VulkanContext {
 
         let mut features12 = vk::PhysicalDeviceVulkan12Features {
             buffer_device_address: vk::TRUE,
+            runtime_descriptor_array: vk::TRUE,
             ..Default::default()
         };
 

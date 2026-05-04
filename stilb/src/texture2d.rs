@@ -110,16 +110,25 @@ impl Texture2D {
     }
 
     fn get_device_size(&self) -> vk::DeviceSize {
-        let res = self.width * self.height;
-        let channels = 4;
-        let bytes = std::mem::size_of::<f32>() as u32;
+        let res = (self.width * self.height) as u64;
+        let channels = 4u64;
 
-        (res * channels * bytes) as vk::DeviceSize
+        let size = match self.format() {
+            vk::Format::R32G32B32A32_SFLOAT => std::mem::size_of::<f32>(),
+            vk::Format::R8G8B8A8_UNORM => std::mem::size_of::<u8>(),
+            _ => unreachable!(),
+        } as u64;
+
+        res * channels * size
     }
 
-    // only 4 channel f32 textures
-    pub fn set_pixels(&mut self, vk: &VulkanContext, pixels: &[f32]) {
+    // only 4 channel f32 or u8 textures
+    pub fn set_pixels<T: Copy>(&mut self, vk: &VulkanContext, pixels: &[T]) {
         assert!(pixels.len() as u32 == self.width * self.height * 4);
+        assert!(
+            std::mem::size_of::<T>() as u64 * pixels.len() as u64 == self.get_device_size(),
+            "pixel type size doesn't match image format"
+        );
 
         let size = self.get_device_size();
 
@@ -133,7 +142,7 @@ impl Texture2D {
             vk.device
                 .map_memory(staging_memory, 0, size, vk::MemoryMapFlags::empty())
                 .unwrap()
-        } as *mut f32;
+        } as *mut T;
 
         unsafe {
             ptr::copy_nonoverlapping(pixels.as_ptr(), ptr, pixels.len());

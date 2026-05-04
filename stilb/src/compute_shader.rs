@@ -198,45 +198,45 @@ pub fn update_init_from_camera_shader(
     unsafe { vk.device.update_descriptor_sets(&descriptor_writes, &[]) };
 }
 
-#[cfg(test)]
-pub fn load_shader_test(vk: &VulkanContext) -> ComputeShader {
-    use shaders::get_test_shader;
+// #[cfg(test)]
+// pub fn load_shader_test(vk: &VulkanContext) -> ComputeShader {
+//     use shaders::get_test_shader;
 
-    let mut bindings = Vec::new();
+//     let mut bindings = Vec::new();
 
-    bindings.push(vk::DescriptorSetLayoutBinding {
-        binding: 0,
-        descriptor_type: vk::DescriptorType::STORAGE_IMAGE,
-        descriptor_count: 1,
-        stage_flags: vk::ShaderStageFlags::COMPUTE,
-        ..Default::default()
-    });
+//     bindings.push(vk::DescriptorSetLayoutBinding {
+//         binding: 0,
+//         descriptor_type: vk::DescriptorType::STORAGE_IMAGE,
+//         descriptor_count: 1,
+//         stage_flags: vk::ShaderStageFlags::COMPUTE,
+//         ..Default::default()
+//     });
 
-    let specialization_info = vk::SpecializationInfo::default();
+//     let specialization_info = vk::SpecializationInfo::default();
 
-    ComputeShader::new(vk, get_test_shader(), &bindings, &[], &specialization_info)
-}
+//     ComputeShader::new(vk, get_test_shader(), &bindings, &[], &specialization_info)
+// }
 
-#[cfg(test)]
-pub fn update_test_shader(vk: &VulkanContext, shader: &ComputeShader, binding0: vk::ImageView) {
-    let image_info = [vk::DescriptorImageInfo {
-        image_view: binding0,
-        image_layout: vk::ImageLayout::GENERAL,
-        ..Default::default()
-    }];
+// #[cfg(test)]
+// pub fn update_test_shader(vk: &VulkanContext, shader: &ComputeShader, binding0: vk::ImageView) {
+//     let image_info = [vk::DescriptorImageInfo {
+//         image_view: binding0,
+//         image_layout: vk::ImageLayout::GENERAL,
+//         ..Default::default()
+//     }];
 
-    let mut image_write = vk::WriteDescriptorSet {
-        dst_set: shader.descriptor_set,
-        dst_binding: 0,
-        descriptor_type: vk::DescriptorType::STORAGE_IMAGE,
-        ..Default::default()
-    };
-    image_write = image_write.image_info(&image_info);
+//     let mut image_write = vk::WriteDescriptorSet {
+//         dst_set: shader.descriptor_set,
+//         dst_binding: 0,
+//         descriptor_type: vk::DescriptorType::STORAGE_IMAGE,
+//         ..Default::default()
+//     };
+//     image_write = image_write.image_info(&image_info);
 
-    let descriptor_writes = [image_write];
+//     let descriptor_writes = [image_write];
 
-    unsafe { vk.device.update_descriptor_sets(&descriptor_writes, &[]) };
-}
+//     unsafe { vk.device.update_descriptor_sets(&descriptor_writes, &[]) };
+// }
 
 #[repr(C)]
 pub struct BakePushConstants {
