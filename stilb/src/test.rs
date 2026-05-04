@@ -405,11 +405,14 @@ mod tests {
             bounce_count: 2,
             max_samples: 256,
             denoise: false,
-            emission_pixels: emission_pixels.as_ptr(),
-            emission_pixels_length: emission_pixels.len() as u32,
         };
 
-        app_add_lightmap_group(app, settings);
+        app_add_lightmap_group(
+            app,
+            settings,
+            emission_pixels.as_ptr(),
+            emission_pixels.len() as u32,
+        );
 
         app_run(app);
 

@@ -335,10 +335,10 @@ pub fn update_bake_lights_shader(
     vk: &VulkanContext,
     shader: &ComputeShader,
     tlas: vk::AccelerationStructureKHR,
-    visibility: &Texture2D,
-    albedo: &Texture2D,
+    target_visibility: &Texture2D,
+    albedo: &Texture2D, // todo abledo and emission array
     emission: &Texture2D,
-    lightmap_diffuse: &Texture2D,
+    target_diffuse: &Texture2D,
     sampler: vk::Sampler,
 ) {
     let mut descriptor_writes = Vec::new();
@@ -357,7 +357,7 @@ pub fn update_bake_lights_shader(
 
     // VisibilityBuffer
     let info = [vk::DescriptorImageInfo {
-        image_view: visibility.view(),
+        image_view: target_visibility.view(),
         image_layout: vk::ImageLayout::GENERAL,
         ..Default::default()
     }];
@@ -416,7 +416,7 @@ pub fn update_bake_lights_shader(
 
     // LightmapDiffuse
     let info = [vk::DescriptorImageInfo {
-        image_view: lightmap_diffuse.view(),
+        image_view: target_diffuse.view(),
         image_layout: vk::ImageLayout::GENERAL,
         ..Default::default()
     }];
