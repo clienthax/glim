@@ -68,7 +68,8 @@ float3 ShadeLight(Light light, Surface surface, float2 xi)
 
     float3 color = cosTheta * falloff * light.color;
 
-    if (cosTheta > 0.0)
+    [branch]
+    if (any(color > 0.0))
     {
         if (TraceShadowRay(shadowRay))
         {
@@ -133,17 +134,10 @@ void main(uint3 threadID: SV_DispatchThreadID)
     // direct light
     float2 xiLight = Scramble(hammersley, coords, 0, sampleIndex);
 
-    #if 1
-    {
-        uint lightIndex = min(uint(xiLight.y * lightCount), lightCount - 1);
-        color += ShadeLight(Push.lights[lightIndex], surface, xiLight) * throughput * float(lightCount);
-    }
-    #else
     for (uint lightIndex = 0; lightIndex < lightCount; lightIndex++)
     {
         color += ShadeLight(Push.lights[lightIndex], surface, xiLight) * throughput;
     }
-    #endif
 
     float2 xiBounce0 = Scramble(hammersley, coords, 1, sampleIndex);
 
@@ -165,8 +159,9 @@ void main(uint3 threadID: SV_DispatchThreadID)
 
             if (isBackface)
             {
-                surfaceBounce.N = -surfaceBounce.N;
-                surfaceBounce.Ng = -surfaceBounce.Ng;
+                continue;
+                // surfaceBounce.N = -surfaceBounce.N;
+                // surfaceBounce.Ng = -surfaceBounce.Ng;
             }
 
             float3 bounceEmission = SampleEmission(surfaceBounce.uv, surfaceBounce.lightmapGroup).rgb;
@@ -179,16 +174,10 @@ void main(uint3 threadID: SV_DispatchThreadID)
             uint dimOffset = (bounceIndex + 1) * 2;
             float2 xiLight = Scramble(hammersley, coords, dimOffset, sampleIndex);
 
-            #if 1
-            uint lightIndex = uint(xiLight.x * lightCount);
-            float pdf = 1.0 / float(lightCount);
-            color += ShadeLight(Push.lights[lightIndex], surfaceBounce, xiLight) * throughput;
-            #else
             for (uint lightIndex = 0; lightIndex < lightCount; lightIndex++)
             {
                 color += ShadeLight(Push.lights[lightIndex], surfaceBounce, xiLight) * throughput;
             }
-            #endif
 
             float2 xiBounce = Scramble(hammersley, coords, dimOffset + 1, sampleIndex);
 
