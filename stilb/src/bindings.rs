@@ -33,6 +33,9 @@ pub extern "C" fn app_add_light(app: *mut Stilb, mut light: Light) {
 
     light.direction = Vector3::ZERO - light.direction;
 
+    // todo:
+    light.shadow_radius_or_angle = light.shadow_radius_or_angle.max(0.001);
+
     app.cpu_lights.push(light);
 }
 

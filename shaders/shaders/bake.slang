@@ -51,7 +51,13 @@ float3 ShadeLight(Light light, Surface surface, float2 xi)
         float distanceSquare = dot(positionToLight, positionToLight);
 
         float rangeSq = light.range * light.range;
+
+        // todo: add falloff type constant
+        #if 1
+        falloff = GetDefaultUnityAttenuation(distanceSquare, 1.0 / rangeSq);
+        #else
         falloff = GetLightFalloff(distanceSquare, 1.0 / rangeSq);
+        #endif
 
         shadowRay.tMax = sqrt(distanceSquare);
     }

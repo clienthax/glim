@@ -56,3 +56,15 @@ float GetLightFalloff(float distanceSquare, float invRangeSq)
     float smoothFactor = saturate(1.0 - factor * factor);
     return (smoothFactor * smoothFactor) / (distanceSquare + 1.0);
 }
+
+// thanks to error.mdl
+// https://discord.com/channels/419351657743253524/443155141235834881/1429649996084416572
+float GetDefaultUnityAttenuation(float distanceSquare, float invRangeSq)
+{
+    float rangeFraction = distanceSquare * invRangeSq;
+    float hyperbolaFalloff = (0.04 / (rangeFraction + 0.04));
+    // starting at around 0.6407, formula linearly blends toward 0 at rangeFraction of 1
+    float lerpToZeroFactor = saturate((rangeFraction - 0.6407) / (1.0 - 0.6407));
+    float unityLightFalloff = lerp(hyperbolaFalloff, 0, lerpToZeroFactor);
+    return unityLightFalloff;
+}
