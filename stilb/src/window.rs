@@ -94,7 +94,7 @@ pub fn update_camera(app: &mut Stilb, delta_time: f32) {
                 camera.last_cursor_pos = Some((pos_x, pos_y));
 
                 if dx != 0.0 || dy != 0.0 {
-                    camera.yaw += dx;
+                    camera.yaw -= dx;
                     camera.pitch = (camera.pitch + dy).clamp(-1.55334, 1.55334);
                     camera_moved = true;
                 }
@@ -104,11 +104,10 @@ pub fn update_camera(app: &mut Stilb, delta_time: f32) {
         let yaw_rad = camera.yaw;
         let pitch_rad = camera.pitch;
 
-        // Match C: cos(yaw)*cos(pitch), sin(pitch), sin(yaw)*cos(pitch)
         let forward = Vector3::new(
-            yaw_rad.cos() * pitch_rad.cos(),
-            pitch_rad.sin(),
             yaw_rad.sin() * pitch_rad.cos(),
+            pitch_rad.sin(),
+            yaw_rad.cos() * pitch_rad.cos(),
         )
         .normalize();
 

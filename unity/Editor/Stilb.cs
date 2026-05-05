@@ -86,6 +86,9 @@ namespace stilb
 
             var datas = new List<MeshData>();
 
+            var tempGo = new GameObject();
+            var tempTransform = tempGo.transform;
+
             for (int i = 0; i < meshFilters.Length; i++)
             {
                 MeshFilter filter = meshFilters[i];
@@ -100,8 +103,18 @@ namespace stilb
                 var triangles = mesh.triangles;
                 var uvs = mesh.HasVertexAttribute(VertexAttribute.TexCoord1) ? mesh.uv2 : mesh.uv;
 
-                transform.TransformPoints(vertices);
-                transform.TransformDirections(normals);
+
+                var vulkanMatrix = Matrix4x4.Scale(new Vector3(1, 1, -1)) * transform.localToWorldMatrix;
+                tempTransform.SetPositionAndRotation(vulkanMatrix.GetPosition(), vulkanMatrix.rotation);
+                tempTransform.localScale = vulkanMatrix.lossyScale;
+
+                tempTransform.TransformPoints(vertices);
+                tempTransform.TransformDirections(normals);
+
+                for (int j = 0; j < triangles.Length; j += 3)
+                {
+                    (triangles[j + 1], triangles[j + 2]) = (triangles[j + 2], triangles[j + 1]);
+                }
 
                 var data = new MeshData
                 {
@@ -140,6 +153,9 @@ namespace stilb
 
                 Matrix4x4 matrix = filter.transform.localToWorldMatrix;
             }
+
+            Editor.DestroyImmediate(tempGo);
+
 
             return datas;
         }

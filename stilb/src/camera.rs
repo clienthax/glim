@@ -11,9 +11,9 @@ pub struct Camera {
 
 impl Camera {
     pub fn make_push_constants(&self) -> InitFromCameraPushConstants {
-        let x = self.yaw.cos() * self.pitch.cos();
+        let x = self.yaw.sin() * self.pitch.cos();
         let y = self.pitch.sin();
-        let z = self.yaw.sin() * self.pitch.cos();
+        let z = self.yaw.cos() * self.pitch.cos();
 
         let camera_direction = Vector3::new(x, y, z).normalize();
 
@@ -29,12 +29,11 @@ impl Camera {
 
     pub fn look_at(&mut self, target: Vector3) {
         let dir = (target - self.position).normalize();
-        self.pitch = dir.y.asin();
-        self.yaw = dir.z.atan2(dir.x);
+        self.set_forward(dir);
     }
 
     pub fn set_forward(&mut self, dir: Vector3) {
         self.pitch = dir.y.asin();
-        self.yaw = dir.z.atan2(dir.x);
+        self.yaw = dir.x.atan2(dir.z);
     }
 }

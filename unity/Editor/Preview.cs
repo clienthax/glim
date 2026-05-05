@@ -64,16 +64,30 @@ namespace stilb
             foreach (var light in lights)
             {
                 // todo color temperature
-                var color = new Vector3(light.color.r, light.color.g, light.color.b) * light.intensity;
+                var linear = light.color.linear;
+                var color = new Vector3(linear.r, linear.g, linear.b) * light.intensity;
+
+                var lightType = Bindings.LightType.Directional;
+                if (light.type == LightType.Directional)
+                {
+                    lightType = Bindings.LightType.Directional;
+                }
+                else if (light.type == LightType.Point)
+                {
+                    lightType = Bindings.LightType.Point;
+                }
+
+                float radiusOrAngle = lightType == Bindings.LightType.Directional ?
+                    Mathf.Deg2Rad * light.shadowAngle : light.shadowRadius;
 
                 var l = new Bindings.Light
                 {
-                    ty = Bindings.LightType.Point,
+                    ty = lightType,
                     position = light.transform.position,
                     direction = light.transform.forward,
                     range = light.range,
                     color = color,
-                    shadow_radius_or_angle = light.shadowRadius,
+                    shadow_radius_or_angle = radiusOrAngle,
                 };
 
                 lightsData.Add(l);
