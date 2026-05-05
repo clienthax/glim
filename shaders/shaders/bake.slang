@@ -153,16 +153,14 @@ void main(uint3 threadID: SV_DispatchThreadID)
         Hit bounceHit;
         if (TraceRay(bounceRay, bounceHit))
         {
-            Surface surfaceBounce = Surface::Get(Push.indices, Push.vertices, bounceHit.primitiveID, bounceHit.bary);
-
-            bool isBackface = dot(surfaceBounce.Ng, bounceRay.D) > 0;
-
-            if (isBackface)
+            if (!bounceHit.frontFace)
             {
                 continue;
                 // surfaceBounce.N = -surfaceBounce.N;
                 // surfaceBounce.Ng = -surfaceBounce.Ng;
             }
+
+            Surface surfaceBounce = Surface::Get(Push.indices, Push.vertices, bounceHit.primitiveID, bounceHit.bary);
 
             float3 bounceEmission = SampleEmission(surfaceBounce.uv, surfaceBounce.lightmapGroup).rgb;
             float3 bounceAlbedo = SampleAlbedo(surfaceBounce.uv, surfaceBounce.lightmapGroup).rgb;

@@ -50,7 +50,7 @@ void main(uint3 threadID: SV_DispatchThreadID)
     Hit hit;
     if (TraceRay(ray, hit))
     {
-        result = EncodeVisibilityBuffer(hit.bary, hit.primitiveID, true, false);
+        result = EncodeVisibilityBuffer(hit.bary, hit.primitiveID, hit.frontFace, false);
     }
     else
     {

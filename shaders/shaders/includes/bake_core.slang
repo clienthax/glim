@@ -15,6 +15,7 @@ struct Hit
     float2 bary;
     float t;
     uint primitiveID;
+    bool frontFace;
 }
 
 float4 EncodeVisibilityBuffer(float2 bary, uint primitiveID, bool isVisible, bool useSmoothP)
@@ -22,12 +23,13 @@ float4 EncodeVisibilityBuffer(float2 bary, uint primitiveID, bool isVisible, boo
     uint encoded = 0;
     if (isVisible)
     {
-        encoded |= 1 << 0;
+        encoded |= 0x1 << 0;
     }
     if (useSmoothP)
     {
-        encoded |= 1 << 1;
+        encoded |= 0x1 << 1;
     }
+
     return float4(bary, asfloat(primitiveID), asfloat(encoded));
 }
 
@@ -59,6 +61,7 @@ bool TraceRay(Ray ray, out Hit hit)
         hit.bary = query.CommittedTriangleBarycentrics();
         hit.primitiveID = query.CommittedPrimitiveIndex();
         hit.t = query.CommittedRayT();
+        hit.frontFace = query.CommittedTriangleFrontFace();
         return true;
     }
 
