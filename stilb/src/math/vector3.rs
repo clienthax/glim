@@ -1,5 +1,7 @@
 use std::ops::{Add, Div, Mul, Sub};
 
+use crate::CoordinateSystem;
+
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct Vector3 {
@@ -24,6 +26,12 @@ impl Vector3 {
         x: 1.0,
         y: 1.0,
         z: 1.0,
+    };
+
+    pub const FORWARD: Self = Self {
+        x: 0.0,
+        y: 0.0,
+        z: -1.0,
     };
 
     pub const UP: Self = Self {
@@ -62,6 +70,14 @@ impl Vector3 {
             x: self.y * rhs.z - self.z * rhs.y,
             y: self.z * rhs.x - self.x * rhs.z,
             z: self.x * rhs.y - self.y * rhs.x,
+        }
+    }
+
+    #[inline]
+    pub fn transform_space(&mut self, system: CoordinateSystem) {
+        match system {
+            CoordinateSystem::Default => {}
+            CoordinateSystem::Unity => self.z = -self.z,
         }
     }
 }

@@ -1,6 +1,6 @@
 use ash::vk::{self, Handle};
 
-use crate::{math::*, vulkan_context::VulkanContext};
+use crate::{CoordinateSystem, math::*, vulkan_context::VulkanContext};
 use core::slice;
 
 #[repr(C)]
@@ -30,7 +30,7 @@ pub struct Mesh {
 }
 
 impl Mesh {
-    pub fn from_ffi_mesh(mesh: FfiMesh) -> Self {
+    pub fn from_ffi_mesh(mesh: FfiMesh, system: CoordinateSystem) -> Self {
         let verts = unsafe { slice::from_raw_parts(mesh.vertices, mesh.vertices_length as usize) };
         let normals = unsafe { slice::from_raw_parts(mesh.normals, mesh.vertices_length as usize) };
         let uvs = unsafe { slice::from_raw_parts(mesh.uvs, mesh.vertices_length as usize) };
@@ -46,17 +46,33 @@ impl Mesh {
             uv.x = uv.x.clamp(0.0, 1.0) + group;
             uv.y = uv.y.clamp(0.0, 1.0) + group;
 
-            let vertex = Vertex {
+            let mut vertex = Vertex {
                 position: verts[i],
                 uv_x: uv.x,
                 normal: normals[i],
                 uv_y: uv.y,
             };
 
+            vertex.normal.transform_space(system);
+            vertex.position.transform_space(system);
+
             vertices_copy.push(vertex);
         }
 
-        triangles_copy.extend(indices);
+        match system {
+            CoordinateSystem::Default => {
+                triangles_copy.extend(indices);
+            }
+            CoordinateSystem::Unity => {
+                triangles_copy.reserve(indices.len());
+
+                for triangle in indices.chunks(3) {
+                    triangles_copy.push(triangle[0]);
+                    triangles_copy.push(triangle[2]);
+                    triangles_copy.push(triangle[1]);
+                }
+            }
+        }
 
         Self {
             vertices: vertices_copy,

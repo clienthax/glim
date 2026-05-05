@@ -35,15 +35,15 @@ mod tests {
         };
 
         for vert in &mut vertices {
-            let temp = vert.position.y;
-            vert.position.y = vert.position.z;
-            vert.position.z = temp;
-            vert.position.x = -vert.position.x;
+            let pos = vert.position;
+            vert.position.x = pos.x;
+            vert.position.y = pos.z;
+            vert.position.z = -pos.y;
 
-            let temp = vert.normal.y;
-            vert.normal.y = vert.normal.z;
-            vert.normal.z = temp;
-            vert.normal.x = -vert.normal.x;
+            let norm = vert.normal;
+            vert.normal.x = norm.x;
+            vert.normal.y = norm.z;
+            vert.normal.z = -norm.y;
         }
 
         let indices: Vec<u32> = (0..vertices.len() as u32).collect();
@@ -342,11 +342,12 @@ mod tests {
     #[test]
     fn test_preview() {
         let config = StilbConfig {
+            coordinate_system: CoordinateSystem::Default,
             is_preview: true,
             preview_width: 1024,
             preview_height: 1024,
-            camera_position: Vector3::ONE,
-            camera_forward: Vector3::ONE.normalize(),
+            camera_position: Vector3::new(0.0, 0.0, 5.0),
+            camera_forward: Vector3::FORWARD,
         };
 
         let app = app_new(config);

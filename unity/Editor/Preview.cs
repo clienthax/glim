@@ -39,6 +39,7 @@ namespace stilb
 
             var config = new Bindings.StilbConfig
             {
+                coordinate_system = Bindings.CoordinateSystem.Unity,
                 is_preview = true,
                 preview_height = 512,
                 preview_width = 512,

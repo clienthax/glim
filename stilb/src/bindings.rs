@@ -5,6 +5,7 @@ use ash::vk::Handle;
 use crate::{
     LightmapGroup, LightmapSettings, RenderTarget, Stilb, StilbConfig,
     lights::Light,
+    math::Vector3,
     mesh::{FfiMesh, Mesh},
     start_bake,
 };
@@ -18,13 +19,20 @@ pub extern "C" fn app_new(config: StilbConfig) -> *mut Stilb {
 #[unsafe(no_mangle)]
 pub extern "C" fn app_add_mesh(app: *mut Stilb, mesh: FfiMesh) {
     let app = unsafe { &mut *app };
-    let mesh = Mesh::from_ffi_mesh(mesh);
+    let mesh = Mesh::from_ffi_mesh(mesh, app.config.coordinate_system);
     app.cpu_mesh.merge_mesh(&mesh);
 }
 
 #[unsafe(no_mangle)]
-pub extern "C" fn app_add_light(app: *mut Stilb, light: Light) {
+pub extern "C" fn app_add_light(app: *mut Stilb, mut light: Light) {
     let app = unsafe { &mut *app };
+
+    let system = app.config.coordinate_system;
+    light.position.transform_space(system);
+    light.direction.transform_space(system);
+
+    light.direction = Vector3::ZERO - light.direction;
+
     app.cpu_lights.push(light);
 }
 

@@ -92,9 +92,17 @@ pub struct LightmapGroup {
     pub emission: Texture2D,
 }
 
+#[repr(u32)]
+#[derive(Clone, Copy)]
+pub enum CoordinateSystem {
+    Default = 0,
+    Unity = 1,
+}
+
 #[repr(C)]
 #[derive(Clone, Copy)]
 pub struct StilbConfig {
+    pub coordinate_system: CoordinateSystem,
     pub is_preview: bool,
     pub preview_width: u32,
     pub preview_height: u32,
@@ -965,15 +973,18 @@ impl Stilb {
             vk.create_swapchain(config.preview_width, config.preview_height);
         }
 
+        let mut pos = config.camera_position;
+        pos.transform_space(config.coordinate_system);
         let mut camera = Camera {
-            position: config.camera_position,
+            position: pos,
             yaw: 0.0,
             pitch: 0.0,
             fov: 60.0,
             last_cursor_pos: None,
         };
-
-        camera.set_forward(config.camera_forward);
+        let mut fwd = config.camera_forward;
+        fwd.transform_space(config.coordinate_system);
+        camera.set_forward(fwd);
 
         let init_from_camera_shader = load_init_from_camera_shader(&vk);
 

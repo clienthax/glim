@@ -1,4 +1,5 @@
 using System;
+using System.Drawing.Drawing2D;
 using System.Runtime.InteropServices;
 using UnityEngine;
 
@@ -6,10 +7,16 @@ namespace stilb
 {
     public static class Bindings
     {
+        public enum CoordinateSystem : uint
+        {
+            Default = 0,
+            Unity = 1,
+        }
 
         [StructLayout(LayoutKind.Sequential)]
         public struct StilbConfig
         {
+            public CoordinateSystem coordinate_system;
             [MarshalAs(UnmanagedType.I1)]
             public bool is_preview;
 
