@@ -44,6 +44,8 @@ mod tests {
             vert.normal.x = norm.x;
             vert.normal.y = norm.z;
             vert.normal.z = -norm.y;
+
+            vert.uv_y = 1.0 - vert.uv_y;
         }
 
         let indices: Vec<u32> = (0..vertices.len() as u32).collect();
@@ -341,44 +343,53 @@ mod tests {
 
     #[test]
     fn test_preview() {
+        let preview_settings = LightmapSettings {
+            width: 1024,
+            height: 1024,
+            max_samples: 256,
+            bounce_count: 3,
+            denoise: false,
+        };
+
         let config = StilbConfig {
             coordinate_system: CoordinateSystem::Default,
             is_preview: true,
-            preview_width: 1024,
-            preview_height: 1024,
             camera_position: Vector3::new(0.0, 0.0, 5.0),
             camera_forward: Vector3::FORWARD,
+            preview_settings,
+            throttle_preview_ms: 10,
         };
 
         let app = app_new(config);
-        let mesh = get_test_mesh_moneky();
-        let mut mesh2 = get_test_mesh_moneky();
+        // app
+        let mut mesh = get_test_mesh_moneky();
 
-        for m in &mut mesh2.vertices {
-            m.position.x += 5.0;
-        }
-
-        {
-            let app = unsafe { &mut *app };
-            app.cpu_mesh.merge_mesh(&mesh);
-            app.cpu_mesh.merge_mesh(&mesh2);
-        }
-
-        app_add_light(
-            app,
-            Light {
-                ty: LightType::Point,
-                position: Vector3 {
-                    x: 0.0,
-                    y: 4.0,
-                    z: 0.0,
+        let mut offset = 0.0;
+        for _ in 0..5 {
+            {
+                let app = unsafe { &mut *app };
+                app.cpu_mesh.merge_mesh(&mesh);
+            }
+            app_add_light(
+                app,
+                Light {
+                    ty: LightType::Point,
+                    position: Vector3 {
+                        x: 0.0 + offset,
+                        y: 4.0,
+                        z: 0.0,
+                    },
+                    direction: Vector3::ZERO,
+                    range: 10.0,
+                    color: Vector3::new(1.0, 1.0, 1.0) * 1.0,
+                    shadow_radius_or_angle: 0.01,
                 },
-                direction: Vector3::ZERO,
-                range: 10.0,
-                color: Vector3::new(1.0, 1.0, 1.0) * 1.0,
-                shadow_radius_or_angle: 0.01,
-            },
-        );
+            );
+            offset += 5.0;
+            for m in &mut mesh.vertices {
+                m.position.x += 5.0;
+            }
+        }
 
         // app_add_light(
         //     app,
@@ -389,10 +400,10 @@ mod tests {
         //             y: 1.0,
         //             z: 0.0,
         //         },
-        //         direction: Vector3::new(1.0, 1.0, -1.0).normalize(),
-        //         range: 10.0,
+        //         direction: Vector3::new(0.5, -1.0, 0.5).normalize(),
+        //         range: 0.0,
         //         color: Vector3::new(1.0, 1.0, 1.0),
-        //         shadow_range_or_angle: 0.5,
+        //         shadow_radius_or_angle: 0.01,
         //     },
         // );
 

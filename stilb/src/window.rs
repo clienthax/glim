@@ -43,7 +43,10 @@ pub fn initialize_window(
 ) -> *mut GLFWwindow {
     let mut window = ptr::null_mut();
     if vulkan_config.enable_window {
-        window = create_window(config.preview_width, config.preview_height);
+        window = create_window(
+            config.preview_settings.width,
+            config.preview_settings.height,
+        );
 
         unsafe {
             let mut window_extensions_count: u32 = 0;

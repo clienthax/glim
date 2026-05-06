@@ -5,9 +5,105 @@ using Unity.Collections;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.Rendering;
+using UnityEngine.SceneManagement;
 
 namespace stilb
 {
+    public class BakeContextGroup
+    {
+        public Color32[] albedo;
+        public Color[] emission;
+        public Bindings.LightmapSettings settings;
+
+        public BakeContextGroup(LightmapGroup group, IList<Renderer> renderers)
+        {
+            settings = new Bindings.LightmapSettings
+            {
+                width = 512,
+                height = 512,
+                max_samples = 256,
+                bounce_count = 3,
+                denoise = false,
+            };
+
+            using var metaAlbedo = new MetaTexture((int)settings.width, MetaTexture.AtlasType.Albedo);
+            using var metaEmission = new MetaTexture((int)settings.width, MetaTexture.AtlasType.Emission);
+
+            albedo = metaAlbedo
+                .CreateAtlas(renderers, MetaTexture.AtlasType.Albedo)
+                .GetData<Color32>().ToArray();
+
+            emission = metaEmission
+                .CreateAtlas(renderers, MetaTexture.AtlasType.Emission)
+                .GetData<Color>().ToArray();
+
+            Debug.Log($"Group width: {settings.width}, height:{settings.height}");
+        }
+    }
+
+    public class BakeContext
+    {
+        public List<Bindings.Light> sceneLights = new();
+        public List<Stilb.MeshData> sceneMesh = new();
+        public List<BakeContextGroup> groups = new();
+
+        public BakeContext()
+        {
+            var scene = SceneManager.GetActiveScene();
+
+            var rootObjects = scene.GetRootGameObjects().Where(x => x.activeInHierarchy);
+
+            var lights = rootObjects.SelectMany(x => x.GetComponentsInChildren<Light>(false)).ToArray();
+            foreach (var light in lights)
+            {
+                // todo color temperature
+                var linear = light.color.linear;
+                var color = new Vector3(linear.r, linear.g, linear.b) * light.intensity;
+
+                var lightType = Bindings.LightType.Directional;
+                if (light.type == LightType.Directional)
+                {
+                    lightType = Bindings.LightType.Directional;
+                }
+                else if (light.type == LightType.Point)
+                {
+                    lightType = Bindings.LightType.Point;
+                }
+
+                float radiusOrAngle = lightType == Bindings.LightType.Directional ?
+                    Mathf.Deg2Rad * light.shadowAngle : light.shadowRadius;
+
+                var l = new Bindings.Light
+                {
+                    ty = lightType,
+                    position = light.transform.position,
+                    direction = light.transform.forward,
+                    range = light.range,
+                    color = color,
+                    shadow_radius_or_angle = radiusOrAngle,
+                };
+
+                sceneLights.Add(l);
+            }
+
+
+            var groups = rootObjects.SelectMany(x => x.GetComponentsInChildren<LightmapGroup>(false)).ToArray();
+            for (uint i = 0; i < groups.Length; i++)
+            {
+                LightmapGroup group = groups[i];
+                var groupRenderers = group.GetComponentsInChildren<MeshRenderer>(false);
+                this.groups.Add(new BakeContextGroup(group, groupRenderers));
+
+                sceneMesh.AddRange(Stilb.ExtractMeshData(groupRenderers, i));
+            }
+
+            Debug.Log($"Vertices: {sceneMesh.Sum(x => x.vertices.Length)}");
+            Debug.Log($"Indices: {sceneMesh.Sum(x => x.triangles.Length)}");
+            Debug.Log($"Lights: {sceneLights.Count}");
+
+        }
+    }
+
     public class Stilb
     {
         public static bool IsLightmapStatic(MeshRenderer renderer)

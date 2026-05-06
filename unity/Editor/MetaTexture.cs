@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using UnityEditor;
 using UnityEngine;
@@ -36,7 +37,7 @@ namespace stilb
             Emission,
         }
 
-        public AsyncGPUReadbackRequest CreateAtlas(MeshRenderer[] renderers, AtlasType type)
+        public AsyncGPUReadbackRequest CreateAtlas(IList<Renderer> renderers, AtlasType type)
         {
             using var cmd = new CommandBuffer();
             cmd.SetRenderTarget(_rt);
@@ -113,7 +114,7 @@ namespace stilb
 
             for (int offsetIndex = 0; offsetIndex < uvOffset.Length; offsetIndex++)
             {
-                for (int rendererIndex = 0; rendererIndex < renderers.Length; rendererIndex++)
+                for (int rendererIndex = 0; rendererIndex < renderers.Count; rendererIndex++)
                 {
                     var renderer = renderers[rendererIndex];
                     var mesh = renderer.GetComponent<MeshFilter>().sharedMesh;

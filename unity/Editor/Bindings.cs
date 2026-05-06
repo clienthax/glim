@@ -17,11 +17,11 @@ namespace stilb
         public struct StilbConfig
         {
             public CoordinateSystem coordinate_system;
+
             [MarshalAs(UnmanagedType.I1)]
             public bool is_preview;
-
-            public uint preview_width;
-            public uint preview_height;
+            public uint throttle_preview_ms;
+            public LightmapSettings preview_settings;
 
             public Vector3 camera_position;
             public Vector3 camera_forward;

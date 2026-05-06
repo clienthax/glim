@@ -5,111 +5,83 @@ using System.Threading;
 using UnityEditor;
 using UnityEngine;
 using UnityEngine.SceneManagement;
+using UnityEngine.UIElements;
 
 namespace stilb
 {
-    public class Preview
+    public class Preview : EditorWindow
     {
-        [MenuItem("Stilb/Start Preview")]
-        public static void StartPreview()
+        [MenuItem("Stilb/Preview")]
+        public static void Open()
         {
-            var scene = SceneManager.GetActiveScene();
+            GetWindow<Preview>("Lightmap Preview");
+        }
 
-            var camera = SceneView.lastActiveSceneView.camera;
-
-            var rootObjects = scene.GetRootGameObjects().Where(x => x.activeInHierarchy);
-
-            var groups = rootObjects.SelectMany(x => x.GetComponentsInChildren<LightmapGroup>(false)).ToArray();
-
-            var allRenderers = groups.SelectMany(x => x.GetComponentsInChildren<MeshRenderer>(false));
-
-            var staticRenderers = allRenderers.Where(x => Stilb.IsLightmapStatic(x)).ToArray();
-
-            var lights = rootObjects.SelectMany(x => x.GetComponentsInChildren<Light>(false)).ToArray();
+        Bindings.StilbConfig config;
+        Bindings.LightmapSettings previewSettings;
 
 
-            var lightmapSettings = new Bindings.LightmapSettings
-            {
-                width = 512,
-                height = 512,
-                max_samples = 256,
-                bounce_count = 3,
-                denoise = false,
-            };
-
-            var config = new Bindings.StilbConfig
+        public void CreateGUI()
+        {
+            config = new Bindings.StilbConfig
             {
                 coordinate_system = Bindings.CoordinateSystem.Unity,
                 is_preview = true,
-                preview_width = 1024,
-                preview_height = 1024,
-                camera_position = camera.transform.position,
-                camera_forward = camera.transform.forward,
+                preview_settings = previewSettings,
+                throttle_preview_ms = 10,
             };
 
-            var meshes = new List<Mesh>();
-
-            int pixels = (int)(lightmapSettings.width * lightmapSettings.height);
-
-            // var albedo = new Color32[pixels];
-            // for (int i = 0; i < pixels; i++)
-            // {
-            //     albedo[i] = new Color32(255, 255, 255, 255);
-            // }
-            // var emission = new Color[pixels];
-
-            var meshData = Stilb.ExtractMeshData(staticRenderers, 0);
-
-            var lightsData = new List<Bindings.Light>();
-
-            foreach (var light in lights)
+            previewSettings = new Bindings.LightmapSettings
             {
-                // todo color temperature
-                var linear = light.color.linear;
-                var color = new Vector3(linear.r, linear.g, linear.b) * light.intensity;
+                width = 1024,
+                height = 1024,
+                max_samples = 512,
+                bounce_count = 3,
+            };
 
-                var lightType = Bindings.LightType.Directional;
-                if (light.type == LightType.Directional)
+            Button startButton = new Button
+            {
+                text = "Start Preview",
+                style =
                 {
-                    lightType = Bindings.LightType.Directional;
+                    height = 50
                 }
-                else if (light.type == LightType.Point)
-                {
-                    lightType = Bindings.LightType.Point;
-                }
+            };
+            startButton.clicked += () =>
+            {
+                var camera = SceneView.lastActiveSceneView.camera;
+                config.camera_position = camera.transform.position;
+                config.camera_forward = camera.transform.forward;
+                config.preview_settings = previewSettings;
+                StartPreview(config);
+            };
+            rootVisualElement.Add(startButton);
 
-                float radiusOrAngle = lightType == Bindings.LightType.Directional ?
-                    Mathf.Deg2Rad * light.shadowAngle : light.shadowRadius;
+            var width = new IntegerField("Width") { value = (int)previewSettings.width };
+            width.RegisterValueChangedCallback(evt => previewSettings.width = (uint)evt.newValue);
+            rootVisualElement.Add(width);
 
-                var l = new Bindings.Light
-                {
-                    ty = lightType,
-                    position = light.transform.position,
-                    direction = light.transform.forward,
-                    range = light.range,
-                    color = color,
-                    shadow_radius_or_angle = radiusOrAngle,
-                };
+            var height = new IntegerField("Height") { value = (int)previewSettings.height };
+            height.RegisterValueChangedCallback(evt => previewSettings.height = (uint)evt.newValue);
+            rootVisualElement.Add(height);
 
-                lightsData.Add(l);
-            }
+            var maxSamples = new IntegerField("Max Samples") { value = (int)previewSettings.max_samples };
+            maxSamples.RegisterValueChangedCallback(evt => previewSettings.max_samples = (uint)evt.newValue);
+            rootVisualElement.Add(maxSamples);
 
+            var bounceCount = new IntegerField("Bounces") { value = (int)previewSettings.bounce_count };
+            bounceCount.RegisterValueChangedCallback(evt => previewSettings.bounce_count = (uint)evt.newValue);
+            rootVisualElement.Add(bounceCount);
 
-            using var metaAlbedo = new MetaTexture((int)lightmapSettings.width, MetaTexture.AtlasType.Albedo);
-            using var metaEmission = new MetaTexture((int)lightmapSettings.width, MetaTexture.AtlasType.Emission);
+            var throttle = new IntegerField("Throttle Preview (ms)") { value = (int)config.throttle_preview_ms };
+            throttle.RegisterValueChangedCallback(evt => config.throttle_preview_ms = (uint)evt.newValue);
+            rootVisualElement.Add(throttle);
+        }
 
-            var albedo = metaAlbedo
-                .CreateAtlas(staticRenderers, MetaTexture.AtlasType.Albedo)
-                .GetData<Color32>().ToArray();
+        public static void StartPreview(Bindings.StilbConfig config)
+        {
+            var ctx = new BakeContext();
 
-            var emission = metaEmission
-                .CreateAtlas(staticRenderers, MetaTexture.AtlasType.Emission)
-                .GetData<Color>().ToArray();
-
-            Debug.Log($"Group width: {lightmapSettings.width}, height:{lightmapSettings.height}");
-            Debug.Log($"Vertices: {meshData.Sum(x => x.vertices.Length)}");
-            Debug.Log($"Indices: {meshData.Sum(x => x.triangles.Length)}");
-            Debug.Log($"Lights: {lightsData.Count}");
 
             var thread = new Thread(() =>
             {
@@ -118,9 +90,9 @@ namespace stilb
                     var app = Bindings.app_new(config);
 
 
-                    for (int i = 0; i < meshData.Count; i++)
+                    for (int i = 0; i < ctx.sceneMesh.Count; i++)
                     {
-                        var data = meshData[i];
+                        var data = ctx.sceneMesh[i];
 
                         unsafe
                         {
@@ -145,26 +117,30 @@ namespace stilb
                         }
                     }
 
-                    foreach (var light in lightsData)
+                    foreach (var light in ctx.sceneLights)
                     {
                         Bindings.app_add_light(app, light);
                     }
 
-                    unsafe
+                    foreach (var group in ctx.groups)
                     {
-                        fixed (Color32* albedoPtr = albedo)
-                        fixed (Color* emissionsPtr = emission)
+                        unsafe
                         {
-                            Bindings.app_add_lightmap_group(
-                                app,
-                                lightmapSettings,
-                                (byte*)albedoPtr,
-                                (uint)(albedo.Length * 4),
-                                (float*)emissionsPtr,
-                                (uint)(emission.Length * 4)
-                            );
+                            fixed (Color32* albedoPtr = group.albedo)
+                            fixed (Color* emissionsPtr = group.emission)
+                            {
+                                Bindings.app_add_lightmap_group(
+                                    app,
+                                    group.settings,
+                                    (byte*)albedoPtr,
+                                    (uint)(group.albedo.Length * 4),
+                                    (float*)emissionsPtr,
+                                    (uint)(group.emission.Length * 4)
+                                );
+                            }
                         }
                     }
+
 
                     Bindings.app_run(app);
 

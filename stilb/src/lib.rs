@@ -100,12 +100,13 @@ pub enum CoordinateSystem {
 }
 
 #[repr(C)]
-#[derive(Clone, Copy)]
+#[derive(Clone)]
 pub struct StilbConfig {
     pub coordinate_system: CoordinateSystem,
+
     pub is_preview: bool,
-    pub preview_width: u32,
-    pub preview_height: u32,
+    pub throttle_preview_ms: u32,
+    pub preview_settings: LightmapSettings,
 
     pub camera_position: Vector3,
     pub camera_forward: Vector3,
@@ -218,8 +219,8 @@ fn render_visibility_buffer_camera(app: &mut Stilb, width: u32, height: u32) -> 
 }
 
 fn rasterize_visibility_from_camera(app: &mut Stilb, cmd: vk::CommandBuffer) {
-    let width = app.config.preview_width;
-    let height = app.config.preview_height;
+    let width = app.config.preview_settings.width;
+    let height = app.config.preview_settings.height;
 
     let vk = &mut app.vk;
     let shader = &app.init_from_camera_shader;
@@ -393,8 +394,7 @@ fn bake_lightmaps(app: &mut Stilb) {
     if app.config.is_preview {
         let window = app.window;
 
-        // todo: move preview settings
-        let preview_settings = app.groups[0].settings.clone();
+        let preview_settings = app.config.preview_settings.clone();
 
         // let group = &app.groups[0];
 
@@ -446,8 +446,8 @@ fn bake_lightmaps(app: &mut Stilb) {
                 }
 
                 if !render_sample_camera(app, &preview_settings) {
-                    app.config.preview_width = app.vk.swapchain.extent.width;
-                    app.config.preview_height = app.vk.swapchain.extent.height;
+                    app.config.preview_settings.width = app.vk.swapchain.extent.width;
+                    app.config.preview_settings.height = app.vk.swapchain.extent.height;
 
                     update_render_target(app, &preview_settings);
                     let RenderTarget::NonDirectional {
@@ -472,8 +472,11 @@ fn bake_lightmaps(app: &mut Stilb) {
                     continue;
                 }
 
-                #[cfg(debug_assertions)]
-                std::thread::sleep(Duration::from_millis(1000 / 100));
+                if app.config.throttle_preview_ms > 0 {
+                    std::thread::sleep(Duration::from_millis(
+                        app.config.throttle_preview_ms as u64,
+                    ));
+                }
 
                 previous_time = now;
             }
@@ -520,8 +523,8 @@ fn render_sample_camera(app: &mut Stilb, settings: &LightmapSettings) -> bool {
 
     let frame = &app.vk.swapchain.frames[frame_index];
 
-    let width = app.config.preview_width;
-    let height = app.config.preview_height;
+    let width = app.config.preview_settings.width;
+    let height = app.config.preview_settings.height;
 
     let vk = &app.vk.device;
 
@@ -622,8 +625,8 @@ fn render_sample_camera(app: &mut Stilb, settings: &LightmapSettings) -> bool {
             render_sample(
                 app,
                 cmd,
-                app.config.preview_width,
-                app.config.preview_height,
+                app.config.preview_settings.width,
+                app.config.preview_settings.height,
             );
             app.push.sample_index += 1;
         }
@@ -824,7 +827,10 @@ fn update_render_target(app: &mut Stilb, settings: &LightmapSettings) {
     };
 
     let (target_width, target_height) = if app.config.is_preview {
-        (app.config.preview_width, app.config.preview_height)
+        (
+            app.config.preview_settings.width,
+            app.config.preview_settings.height,
+        )
     } else {
         (settings.width, settings.height)
     };
@@ -970,7 +976,10 @@ impl Stilb {
         println!("Vulkan Initialized");
 
         if config.is_preview {
-            vk.create_swapchain(config.preview_width, config.preview_height);
+            vk.create_swapchain(
+                config.preview_settings.width,
+                config.preview_settings.height,
+            );
         }
 
         let mut pos = config.camera_position;
