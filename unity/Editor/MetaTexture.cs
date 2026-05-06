@@ -12,6 +12,7 @@ namespace stilb
         RenderTexture _rt;
 
         int _resolution;
+        Material _metaAlphaMat;
         public MetaTexture(int resolution, AtlasType type)
         {
             _resolution = resolution;
@@ -28,6 +29,7 @@ namespace stilb
                 dimension = TextureDimension.Tex2D
             };
 
+            _metaAlphaMat = AssetDatabase.LoadAssetAtPath<Material>("Packages/io.github.z3y.stilb/Editor/AlphaMeta.mat");
             _rt = new RenderTexture(desc);
         }
 
@@ -35,6 +37,7 @@ namespace stilb
         {
             Albedo,
             Emission,
+            Alpha,
         }
 
         public AsyncGPUReadbackRequest CreateAtlas(IList<Renderer> renderers, AtlasType type)
@@ -43,9 +46,21 @@ namespace stilb
             cmd.SetRenderTarget(_rt);
 
             cmd.ClearRenderTarget(true, true, Color.black);
+            RenderMeta(renderers, type, cmd);
+            if (type == AtlasType.Albedo)
+            {
+                RenderMeta(renderers, AtlasType.Alpha, cmd);
+            }
 
-            var transform = Matrix4x4.identity;
+            var format = type == AtlasType.Albedo ? TextureFormat.RGBA32 : TextureFormat.RGBAFloat;
 
+            var request = AsyncGPUReadback.Request(_rt, 0, format);
+            request.WaitForCompletion();
+            return request;
+        }
+
+        void RenderMeta(IList<Renderer> renderers, AtlasType type, CommandBuffer cmd)
+        {
             float near = 0.01f;
             float far = 100f;
 
@@ -118,6 +133,10 @@ namespace stilb
                 {
                     var renderer = renderers[rendererIndex];
                     var mesh = renderer.GetComponent<MeshFilter>().sharedMesh;
+
+                    // TODO: TEMP
+                    renderer.lightmapScaleOffset = new Vector4(1, 1, 0, 0);
+
                     var so = renderer.lightmapScaleOffset;
                     so.z += uvOffset[offsetIndex].z;
                     so.w += uvOffset[offsetIndex].w;
@@ -128,26 +147,48 @@ namespace stilb
                     {
                         var mat = renderer.sharedMaterials[submeshIndex];
 
-                        if (type == AtlasType.Emission)
+                        if (type == AtlasType.Alpha)
                         {
-                            if (!mat.globalIlluminationFlags.HasFlag(MaterialGlobalIlluminationFlags.BakedEmissive))
+
+                            if (mat.renderQueue <= (int)RenderQueue.Geometry)
                             {
                                 continue;
                             }
+
+                            if (!mat.HasFloat("_Cutoff"))
+                            {
+                                continue;
+                            }
+
+                            // todo PropertyID
+                            _metaAlphaMat.SetTexture("_MainTex", mat.mainTexture);
+                            _metaAlphaMat.SetColor("_Color", mat.color);
+                            _metaAlphaMat.SetFloat("_Cutoff", mat.GetFloat("_Cutoff"));
+                            _metaAlphaMat.SetTextureOffset("_MainTex", mat.mainTextureOffset);
+                            _metaAlphaMat.SetTextureScale("_MainTex", mat.mainTextureScale);
+                            cmd.DrawRenderer(renderer, _metaAlphaMat, submeshIndex, 0);
                         }
-                        int meta = mat.FindPass("META");
-                        cmd.DrawRenderer(renderer, mat, submeshIndex, meta);
+                        else
+                        {
+
+
+                            if (type == AtlasType.Emission)
+                            {
+                                if (!mat.globalIlluminationFlags.HasFlag(MaterialGlobalIlluminationFlags.BakedEmissive))
+                                {
+                                    continue;
+                                }
+                            }
+                            int meta = mat.FindPass("META");
+                            cmd.DrawRenderer(renderer, mat, submeshIndex, meta);
+                        }
                     }
                 }
             }
 
             Graphics.ExecuteCommandBuffer(cmd);
-            var format = type == AtlasType.Albedo ? TextureFormat.RGBA32 : TextureFormat.RGBAFloat;
-
-            var request = AsyncGPUReadback.Request(_rt, 0, format);
-            request.WaitForCompletion();
-            return request;
         }
+
 
         public void Dispose()
         {

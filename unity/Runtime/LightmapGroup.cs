@@ -6,6 +6,7 @@ namespace stilb
 {
     public class LightmapGroup : MonoBehaviour
     {
+        public int resolution = 512;
 
     }
 }

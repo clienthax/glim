@@ -19,8 +19,8 @@ namespace stilb
         {
             settings = new Bindings.LightmapSettings
             {
-                width = 512,
-                height = 512,
+                width = (uint)group.resolution,
+                height = (uint)group.resolution,
                 max_samples = 256,
                 bounce_count = 3,
                 denoise = false,
@@ -36,6 +36,14 @@ namespace stilb
             emission = metaEmission
                 .CreateAtlas(renderers, MetaTexture.AtlasType.Emission)
                 .GetData<Color>().ToArray();
+
+
+            // var albedoAtlas = new Texture2D((int)settings.width, (int)settings.height, TextureFormat.ARGB32, 0, true);
+            // albedoAtlas.SetPixels32(albedo);
+            // AssetDatabase.CreateAsset(albedoAtlas, "Assets/AbledoAtlas.asset");
+            // var emissionAtlas = new Texture2D((int)settings.width, (int)settings.height, TextureFormat.RGBAFloat, 0, true);
+            // emissionAtlas.SetPixels(emission);
+            // AssetDatabase.CreateAsset(emissionAtlas, "Assets/EmissionAtlas.asset");
 
             Debug.Log($"Group width: {settings.width}, height:{settings.height}");
         }
@@ -56,6 +64,12 @@ namespace stilb
             var lights = rootObjects.SelectMany(x => x.GetComponentsInChildren<Light>(false)).ToArray();
             foreach (var light in lights)
             {
+                // todo mixed
+                if (light.lightmapBakeType != LightmapBakeType.Baked)
+                {
+                    continue;
+                }
+
                 // todo color temperature
                 var linear = light.color.linear;
                 var color = new Vector3(linear.r, linear.g, linear.b) * light.intensity;
@@ -177,18 +191,20 @@ namespace stilb
 
         public static List<MeshData> ExtractMeshData(MeshRenderer[] renderers, uint groupIndex)
         {
-            var meshFilters = renderers.Select(x => x.GetComponent<MeshFilter>()).ToArray();
-            var meshes = meshFilters.Select(x => x.sharedMesh).ToArray();
-
             var datas = new List<MeshData>();
 
-            for (int i = 0; i < meshFilters.Length; i++)
+            for (int i = 0; i < renderers.Length; i++)
             {
-                MeshFilter filter = meshFilters[i];
+                var filter = renderers[i].GetComponent<MeshFilter>();
+                if (!filter)
+                {
+                    continue;
+                }
+
                 var transform = filter.transform;
                 var mesh = filter.sharedMesh;
 
-                // todo: maybe find a way to use the actual mesh
+                // maybe find a way to use the actual mesh
                 // layout without copy using Mesh.AcquireReadOnlyMeshData()
 
                 var vertices = mesh.vertices;
@@ -196,8 +212,18 @@ namespace stilb
                 var triangles = mesh.triangles;
                 var uvs = mesh.HasVertexAttribute(VertexAttribute.TexCoord1) ? mesh.uv2 : mesh.uv;
 
+
                 transform.TransformPoints(vertices);
                 transform.TransformDirections(normals);
+
+                // todo move to rust
+                // Vector4 scaleOffset = renderers[i].lightmapScaleOffset;
+                // Vector2 scale = new(scaleOffset.x, scaleOffset.y);
+                // Vector2 offset = new(scaleOffset.z, scaleOffset.w);
+                // for (int j = 0; j < uvs.Length; j++)
+                // {
+                //     uvs[j] = uvs[j] + scale + offset;
+                // }
 
                 var data = new MeshData
                 {
@@ -209,35 +235,7 @@ namespace stilb
                 };
 
                 datas.Add(data);
-
-                // unsafe
-                // {
-                //     fixed (Vector3* vPtr = vertices)
-                //     fixed (Vector3* nPtr = normals)
-                //     fixed (Vector2* uPtr = uvs)
-                //     fixed (int* iPtr = triangles)
-                //     {
-                //         var exportedMesh = new Bindings.Mesh
-                //         {
-                //             vertices = vPtr,
-                //             normals = nPtr,
-                //             uvs = uPtr,
-                //             indices = (uint*)iPtr,
-                //             vertices_length = (uint)vertices.Length,
-                //             indices_length = (uint)triangles.Length,
-                //             lightmap_group = groupIndex,
-                //         };
-
-                //         callback(exportedMesh);
-                //     }
-                // }
-
-
-
-                Matrix4x4 matrix = filter.transform.localToWorldMatrix;
             }
-
-
 
             return datas;
         }

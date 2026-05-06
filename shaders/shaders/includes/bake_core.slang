@@ -48,12 +48,26 @@ bool TraceRay(Ray ray, out Hit hit)
     rayDesc.TMin = ray.tMin;
     rayDesc.TMax = ray.tMax;
 
-    RayQuery<RAY_FLAG_FORCE_OPAQUE> query;
-    query.TraceRayInline(TopLevelAS, RAY_FLAG_FORCE_OPAQUE, 0xFF, rayDesc);
+    RayQuery<RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES> query;
+    query.TraceRayInline(TopLevelAS, RAY_FLAG_NONE, 0xFF, rayDesc);
 
     while (query.Proceed())
     {
-        // handle alpha testing
+        #ifdef ALPHA_TEST
+        if (query.CandidateType() == CANDIDATE_NON_OPAQUE_TRIANGLE)
+        {
+            uint primitiveID = query.CandidatePrimitiveIndex();
+            float2 bary = query.CandidateTriangleBarycentrics();
+
+            float2 uv = GetUV(primitiveID, bary);
+            float mask = AlphaAtlas.SampleLevel(samp, uv, 0).r;
+
+            if (mask >= 0.5)
+            {
+                query.CommitNonOpaqueTriangleHit();
+            }
+        }
+        #endif
     }
 
     if (query.CommittedStatus() != COMMITTED_NOTHING)
@@ -77,20 +91,15 @@ bool TraceShadowRay(Ray ray)
     rayDesc.TMin = ray.tMin;
     rayDesc.TMax = ray.tMax;
 
-    RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_FORCE_OPAQUE> query;
-    query.TraceRayInline(TopLevelAS, RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_FORCE_OPAQUE, 0xFF, rayDesc);
+    RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES> query;
+    query.TraceRayInline(TopLevelAS, RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES, 0xFF, rayDesc);
 
     while (query.Proceed())
     {
         // handle alpha testing
     }
 
-    if (query.CommittedStatus() != COMMITTED_NOTHING)
-    {
-        return true;
-    }
-
-    return false;
+    return query.CommittedStatus() != COMMITTED_NOTHING;
 }
 
 // "A Fast and Robust Method for Avoiding Self-Intersection" (Carsten Wächter and Nikolaus Binder)
