@@ -19,11 +19,11 @@ namespace stilb
         {
             settings = new Bindings.LightmapSettings
             {
-                width = (uint)group.resolution,
-                height = (uint)group.resolution,
-                max_samples = 256,
-                bounce_count = 3,
-                denoise = false,
+                width = group.resolution,
+                height = group.resolution,
+                max_samples = group.maxSamples,
+                bounce_count = group.bounceCount,
+                denoise = group.denoise,
             };
 
             using var metaAlbedo = new MetaTexture((int)settings.width, MetaTexture.AtlasType.Albedo);
@@ -54,6 +54,13 @@ namespace stilb
         public List<Bindings.Light> sceneLights = new();
         public List<Stilb.MeshData> sceneMesh = new();
         public List<BakeContextGroup> groups = new();
+
+        private static int GetDepth(Transform t)
+        {
+            int depth = 0;
+            while (t.parent != null) { t = t.parent; depth++; }
+            return depth;
+        }
 
         public BakeContext()
         {
@@ -101,20 +108,51 @@ namespace stilb
             }
 
 
-            var groups = rootObjects.SelectMany(x => x.GetComponentsInChildren<LightmapGroup>(false)).ToArray();
-            for (uint i = 0; i < groups.Length; i++)
-            {
-                LightmapGroup group = groups[i];
-                var groupRenderers = group.GetComponentsInChildren<MeshRenderer>(false);
-                this.groups.Add(new BakeContextGroup(group, groupRenderers));
+            var allSelectors = rootObjects
+                .SelectMany(x => x.GetComponentsInChildren<LightmapGroupSelector>(false))
+                .ToArray();
 
-                sceneMesh.AddRange(Stilb.ExtractMeshData(groupRenderers, i));
+            Array.Sort(allSelectors, (a, b) => GetDepth(b.transform).CompareTo(GetDepth(a.transform)));
+
+            var groupMap = new Dictionary<LightmapGroup, List<MeshRenderer>>();
+            var claimed = new HashSet<MeshRenderer>();
+
+            foreach (var selector in allSelectors)
+            {
+                if (selector.group == null) continue;
+
+                var renderers = selector.GetComponentsInChildren<MeshRenderer>(false);
+                foreach (var r in renderers)
+                {
+                    if (claimed.Add(r))
+                    {
+                        if (!groupMap.TryGetValue(selector.group, out var list))
+                        {
+                            list = new List<MeshRenderer>();
+                            groupMap[selector.group] = list;
+                        }
+                        list.Add(r);
+                    }
+                }
+            }
+
+            uint groupIndex = 0;
+            foreach (var (lightmapGroup, renderers) in groupMap)
+            {
+                var rendererArray = renderers.ToArray();
+                this.groups.Add(new BakeContextGroup(lightmapGroup, rendererArray));
+                sceneMesh.AddRange(Stilb.ExtractMeshData(rendererArray, groupIndex));
+                groupIndex++;
+            }
+
+            if (groupIndex <= 0)
+            {
+                throw new InvalidOperationException("No lightmap groups found.");
             }
 
             Debug.Log($"Vertices: {sceneMesh.Sum(x => x.vertices.Length)}");
             Debug.Log($"Indices: {sceneMesh.Sum(x => x.triangles.Length)}");
             Debug.Log($"Lights: {sceneLights.Count}");
-
         }
     }
 

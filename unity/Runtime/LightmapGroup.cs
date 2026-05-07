@@ -4,9 +4,12 @@ using UnityEngine;
 
 namespace stilb
 {
-    public class LightmapGroup : MonoBehaviour
+    [CreateAssetMenu]
+    public class LightmapGroup : ScriptableObject
     {
-        public int resolution = 512;
-
+        public uint resolution = 512;
+        public uint bounceCount = 5;
+        public uint maxSamples = 512;
+        public bool denoise = true;
     }
 }

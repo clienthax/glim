@@ -1,6 +1,7 @@
 #include "bake_bindings.slang"
 
 static const float RAY_MAX = 10000.0;
+#define ALPHA_TEST 1
 
 struct Ray
 {
@@ -38,6 +39,25 @@ float4 EncodeVisibilityBuffer(float2 bary, uint primitiveID, bool isVisible, boo
 //     return GetSurface(query.CommittedPrimitiveIndex(), query.CommittedTriangleBarycentrics());
 // }
 
+void QueryHandleAlpha<let T : uint>(RayQuery<T> query)
+{
+    if (query.CandidateType() != CANDIDATE_NON_OPAQUE_TRIANGLE)
+    {
+        return;
+    }
+
+    uint primitiveID = query.CandidatePrimitiveIndex();
+    float2 bary = query.CandidateTriangleBarycentrics();
+
+    // Surface surf = GetSurface(primitiveID, bary);
+    // float mask = Albedo.SampleLevel(samp, uv, 0).r;
+
+    // if (mask >= 0.5)
+    // {
+    //     query.CommitNonOpaqueTriangleHit();
+    // }
+}
+
 // hit is not always initialized
 #pragma warning(disable: 41018)
 bool TraceRay(Ray ray, out Hit hit)
@@ -53,20 +73,8 @@ bool TraceRay(Ray ray, out Hit hit)
 
     while (query.Proceed())
     {
-        #ifdef ALPHA_TEST
-        if (query.CandidateType() == CANDIDATE_NON_OPAQUE_TRIANGLE)
-        {
-            uint primitiveID = query.CandidatePrimitiveIndex();
-            float2 bary = query.CandidateTriangleBarycentrics();
-
-            float2 uv = GetUV(primitiveID, bary);
-            float mask = AlphaAtlas.SampleLevel(samp, uv, 0).r;
-
-            if (mask >= 0.5)
-            {
-                query.CommitNonOpaqueTriangleHit();
-            }
-        }
+        #if ALPHA_TEST > 0
+        QueryHandleAlpha(query);
         #endif
     }
 
@@ -96,7 +104,9 @@ bool TraceShadowRay(Ray ray)
 
     while (query.Proceed())
     {
-        // handle alpha testing
+        #if ALPHA_TEST > 0
+        QueryHandleAlpha(query);
+        #endif
     }
 
     return query.CommittedStatus() != COMMITTED_NOTHING;

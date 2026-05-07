@@ -312,14 +312,12 @@ impl GpuMesh {
             transform_offset: 0,
         };
 
+        let ranges = [range_info];
+
         let cmd = vk.begin_single_use_cmd();
 
         unsafe {
-            as_device.cmd_build_acceleration_structures(
-                cmd,
-                &[as_build_geometry_info],
-                &[&[range_info]],
-            )
+            as_device.cmd_build_acceleration_structures(cmd, &[as_build_geometry_info], &[&ranges])
         };
 
         vk.end_single_use_cmd(cmd);

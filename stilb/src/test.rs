@@ -365,7 +365,7 @@ mod tests {
         let mut mesh = get_test_mesh_moneky();
 
         let mut offset = 0.0;
-        for _ in 0..5 {
+        for _ in 0..3 {
             {
                 let app = unsafe { &mut *app };
                 app.cpu_mesh.merge_mesh(&mesh);
@@ -376,11 +376,11 @@ mod tests {
                     ty: LightType::Point,
                     position: Vector3 {
                         x: 0.0 + offset,
-                        y: 4.0,
+                        y: 1.0,
                         z: 0.0,
                     },
                     direction: Vector3::ZERO,
-                    range: 10.0,
+                    range: 5.0,
                     color: Vector3::new(1.0, 1.0, 1.0) * 1.0,
                     shadow_radius_or_angle: 0.01,
                 },

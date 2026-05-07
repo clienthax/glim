@@ -1,4 +1,3 @@
-// #define ALPHA_TEST
 #include "includes/bake_core.slang"
 
 [[vk::push_constant]]
