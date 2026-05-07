@@ -341,8 +341,16 @@ mod tests {
         Ok((width, height, pixels))
     }
 
+    #[unsafe(no_mangle)]
+    pub extern "C" fn test_save_callback(data: ReadbackData) {
+        let pixels = unsafe { std::slice::from_raw_parts(data.pixels, data.pixels_count as usize) };
+
+        let file_name = format!("../temp/diffuse_lightmap{}.bmp", data.group_index);
+        save_bmp(file_name.as_str(), data.width, data.height, &pixels).unwrap();
+    }
+
     #[test]
-    fn test_preview() {
+    fn test_render() {
         let preview_settings = LightmapSettings {
             width: 1024,
             height: 1024,
@@ -353,11 +361,12 @@ mod tests {
 
         let config = StilbConfig {
             coordinate_system: CoordinateSystem::Default,
-            is_preview: true,
+            is_preview: false,
             camera_position: Vector3::new(0.0, 0.0, 5.0),
             camera_forward: Vector3::FORWARD,
             preview_settings,
             throttle_preview_ms: 10,
+            callback: test_save_callback,
         };
 
         let app = app_new(config);

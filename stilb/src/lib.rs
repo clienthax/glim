@@ -8,6 +8,7 @@ use glfw_sys::{
 };
 
 use crate::{
+    bmp::save_bmp,
     camera::Camera,
     compute_shader::{
         BakePushConstants, ComputeShader, load_bake_lights_shader, load_init_from_camera_shader,
@@ -73,6 +74,18 @@ pub enum RenderTarget {
     None,
 }
 
+type ReadbackCallback = extern "C" fn(data: ReadbackData);
+
+#[repr(C)]
+pub struct ReadbackData {
+    pub group_index: u32,
+    pub ty: u32,
+    pub width: u32,
+    pub height: u32,
+    pub pixels: *const f32,
+    pub pixels_count: u32,
+}
+
 #[repr(C)]
 #[derive(Clone, Debug)]
 pub struct LightmapSettings {
@@ -110,6 +123,8 @@ pub struct StilbConfig {
 
     pub camera_position: Vector3,
     pub camera_forward: Vector3,
+
+    pub callback: ReadbackCallback,
 }
 
 #[inline]
@@ -338,19 +353,6 @@ fn start_bake(app: &mut Stilb) {
         app.gpu_lights = gpu_lights;
     }
 
-    // merge and upload mesh
-    // let total_vertices = app.cpu_mesh.iter().map(|mesh| mesh.vertices.len()).sum();
-    // let total_indices = app.cpu_mesh.iter().map(|mesh| mesh.indices.len()).sum();
-
-    // let mut vertices = Vec::with_capacity(total_vertices);
-    // let mut indices = Vec::with_capacity(total_indices);
-
-    // for mesh in &app.cpu_mesh {
-    //     let offset = vertices.len() as u32;
-
-    //     vertices.extend(&mesh.vertices);
-    //     indices.extend(mesh.indices.iter().map(|i| i + offset));
-    // }
     app.gpu_mesh = GpuMesh::new(&app.vk, &app.cpu_mesh);
     // free cpu mesh
     app.cpu_mesh = Mesh {
@@ -391,12 +393,13 @@ fn initialize_bake_push_constants(
 fn bake_lightmaps(app: &mut Stilb) {
     // let mut group = group;
 
+    let albedos: Vec<vk::ImageView> = app.groups.iter().map(|x| x.albedo.view()).collect();
+    let emissions: Vec<vk::ImageView> = app.groups.iter().map(|x| x.emission.view()).collect();
+
     if app.config.is_preview {
         let window = app.window;
 
         let preview_settings = app.config.preview_settings.clone();
-
-        // let group = &app.groups[0];
 
         update_render_target(app, &preview_settings);
 
@@ -408,8 +411,6 @@ fn bake_lightmaps(app: &mut Stilb) {
             unreachable!()
         };
 
-        let albedos: Vec<vk::ImageView> = app.groups.iter().map(|x| x.albedo.view()).collect();
-        let emissions: Vec<vk::ImageView> = app.groups.iter().map(|x| x.emission.view()).collect();
         update_bake_lights_shader(
             &app.vk,
             &app.bake_shader,
@@ -482,40 +483,135 @@ fn bake_lightmaps(app: &mut Stilb) {
             }
         }
     } else {
-        // let width = group.settings.width;
-        // let height = group.settings.height;
+        println!("asdf");
+        for i in 0..app.groups.len() {
+            let group = &app.groups[i];
+            app.push.sample_index = 0;
+            let settings = group.settings.clone();
+            update_render_target(app, &settings);
 
-        // update_push_constants(app, &group.settings);
+            let RenderTarget::NonDirectional {
+                visibility,
+                diffuse,
+            } = &mut app.render_target
+            else {
+                unreachable!()
+            };
 
-        // for i in 0..group.settings.max_samples {
-        //     app.push.sample_index = i as u32;
+            update_bake_lights_shader(
+                &app.vk,
+                &app.bake_shader,
+                app.tlas.acceleration_structure(),
+                visibility.view(),
+                &albedos,
+                &emissions,
+                diffuse.view(),
+                app.sampler_linear_clamp,
+            );
 
-        //     let cmd = app.vk.begin_single_use_cmd();
-        //     render_sample(app, cmd, &mut group, width, height);
-        //     app.vk.end_single_use_cmd(cmd);
-        // }
+            loop {
+                render_sample_bake(app, &settings);
+                if app.push.sample_index >= settings.max_samples {
+                    break;
+                }
+            }
 
-        // match app.lightmap_mode {
-        //     LightmapMode::NonDirectional {
-        //         visibility,
-        //         diffuse,
-        //     } => todo!(),
-        //     LightmapMode::None => todo!(),
-        // }
+            println!("lightmap baked");
 
-        // let pixels_read = group.diffuse_lightmap.read_pixels(&app.vk);
-        // save_bmp(
-        //     "../temp/diffuse_lightmap.bmp",
-        //     group.diffuse_lightmap.width(),
-        //     group.diffuse_lightmap.height(),
-        //     &pixels_read,
-        // )
-        // .unwrap();
+            unsafe {
+                app.vk.device.device_wait_idle().unwrap();
+            }
+
+            let RenderTarget::NonDirectional {
+                visibility: _,
+                diffuse,
+            } = &mut app.render_target
+            else {
+                unreachable!()
+            };
+
+            let callback = app.config.callback;
+
+            let pixels_read = diffuse.read_pixels(&app.vk);
+
+            let readback_data = ReadbackData {
+                group_index: i as u32,
+                ty: 0,
+                pixels: pixels_read.as_ptr(),
+                pixels_count: pixels_read.len() as u32,
+                width: settings.width,
+                height: settings.height,
+            };
+
+            callback(readback_data);
+        }
     }
 
     unsafe {
         app.vk.device.device_wait_idle().unwrap();
     }
+}
+
+fn render_sample_bake(app: &mut Stilb, settings: &LightmapSettings) {
+    let width = settings.width;
+    let height = settings.height;
+
+    let vk = &app.vk.device;
+
+    let cmd = app.vk.command_buffer;
+
+    let begin_info = vk::CommandBufferBeginInfo {
+        flags: vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT,
+        ..Default::default()
+    };
+
+    unsafe {
+        vk.reset_command_buffer(cmd, vk::CommandBufferResetFlags::empty())
+            .unwrap();
+
+        vk.begin_command_buffer(cmd, &begin_info).unwrap();
+
+        let RenderTarget::NonDirectional {
+            visibility: _,
+            diffuse,
+        } = &mut app.render_target
+        else {
+            unreachable!()
+        };
+
+        if diffuse.layout() != vk::ImageLayout::GENERAL {
+            let barrier = diffuse.barrier(
+                vk::ImageLayout::GENERAL,
+                vk::AccessFlags::default(),
+                vk::AccessFlags::SHADER_WRITE,
+            );
+            vk.cmd_pipeline_barrier(
+                cmd,
+                vk::PipelineStageFlags::TOP_OF_PIPE,
+                vk::PipelineStageFlags::COMPUTE_SHADER,
+                vk::DependencyFlags::empty(),
+                &[],
+                &[],
+                &[barrier],
+            );
+        }
+
+        if app.push.sample_index < settings.max_samples {
+            render_sample(app, cmd, width, height);
+            app.push.sample_index += 1;
+        }
+        let vk = &app.vk.device;
+
+        let cmds = [cmd];
+        let submit = vk::SubmitInfo::default().command_buffers(&cmds);
+
+        vk.end_command_buffer(cmd).unwrap();
+
+        vk.queue_submit(app.vk.compute_queue, &[submit], vk::Fence::null())
+            .unwrap();
+
+        vk.queue_wait_idle(app.vk.compute_queue).unwrap()
+    };
 }
 
 fn render_sample_camera(app: &mut Stilb, settings: &LightmapSettings) -> bool {
