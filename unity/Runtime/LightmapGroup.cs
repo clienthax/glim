@@ -1,5 +1,4 @@
-using System.Collections;
-using System.Collections.Generic;
+#if UNITY_EDITOR
 using UnityEngine;
 
 namespace stilb
@@ -13,3 +12,4 @@ namespace stilb
         public bool denoise = true;
     }
 }
+#endif

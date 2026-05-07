@@ -9,75 +9,8 @@ using UnityEngine.UIElements;
 
 namespace stilb
 {
-    public class Preview : EditorWindow
+    public class Preview
     {
-        [MenuItem("Stilb/Preview")]
-        public static void Open()
-        {
-            GetWindow<Preview>("Lightmap Preview");
-        }
-
-        Bindings.StilbConfig config;
-        Bindings.LightmapSettings previewSettings;
-
-
-        public void CreateGUI()
-        {
-            config = new Bindings.StilbConfig
-            {
-                coordinate_system = Bindings.CoordinateSystem.Unity,
-                is_preview = true,
-                preview_settings = previewSettings,
-                throttle_preview_ms = 10,
-            };
-
-            previewSettings = new Bindings.LightmapSettings
-            {
-                width = 1024,
-                height = 1024,
-                max_samples = 512,
-                bounce_count = 3,
-            };
-
-            Button startButton = new Button
-            {
-                text = "Start Preview",
-                style =
-                {
-                    height = 50
-                }
-            };
-            startButton.clicked += () =>
-            {
-                var camera = SceneView.lastActiveSceneView.camera;
-                config.camera_position = camera.transform.position;
-                config.camera_forward = camera.transform.forward;
-                config.preview_settings = previewSettings;
-                StartPreview(config);
-            };
-            rootVisualElement.Add(startButton);
-
-            var width = new IntegerField("Width") { value = (int)previewSettings.width };
-            width.RegisterValueChangedCallback(evt => previewSettings.width = (uint)evt.newValue);
-            rootVisualElement.Add(width);
-
-            var height = new IntegerField("Height") { value = (int)previewSettings.height };
-            height.RegisterValueChangedCallback(evt => previewSettings.height = (uint)evt.newValue);
-            rootVisualElement.Add(height);
-
-            var maxSamples = new IntegerField("Max Samples") { value = (int)previewSettings.max_samples };
-            maxSamples.RegisterValueChangedCallback(evt => previewSettings.max_samples = (uint)evt.newValue);
-            rootVisualElement.Add(maxSamples);
-
-            var bounceCount = new IntegerField("Bounces") { value = (int)previewSettings.bounce_count };
-            bounceCount.RegisterValueChangedCallback(evt => previewSettings.bounce_count = (uint)evt.newValue);
-            rootVisualElement.Add(bounceCount);
-
-            var throttle = new IntegerField("Throttle Preview (ms)") { value = (int)config.throttle_preview_ms };
-            throttle.RegisterValueChangedCallback(evt => config.throttle_preview_ms = (uint)evt.newValue);
-            rootVisualElement.Add(throttle);
-        }
-
         public static void StartPreview(Bindings.StilbConfig config)
         {
             var ctx = new BakeContext();
