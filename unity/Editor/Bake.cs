@@ -48,58 +48,78 @@ namespace stilb
             {
                 return;
             }
-
-            Debug.Log("Bake Complete");
-
-            // List<LightmapStorage.LightmapData> lightmapDatas = new();
-
-            var scenePath = _context.scene.path;
-            string sceneDirectory = Path.GetDirectoryName(scenePath);
-
-            foreach (var item in _bakeResults)
+            try
             {
-                var data = item.data;
+                Debug.Log("Bake Complete");
 
-                var diffuseTex = new Texture2D((int)data.width, (int)data.height, TextureFormat.RGBAFloat, 1, false);
-                diffuseTex.SetPixels(item.pixelsDiffuseCopy);
-                var fileName = $"{_context.scene.name} LightmapDiffuse_{data.group_index}";
-                diffuseTex.name = fileName;
+                List<LightmapData> lightmapDatas = new();
 
-                var assets = new UnityEngine.Object[] { diffuseTex };
-                var path = Path.Combine(sceneDirectory, $"{fileName}.asset");
-                InternalEditorUtility.SaveToSerializedFileAndForget(assets, path, false);
-                // AssetDatabase.CreateAsset(texture, $"Assets/{fileName}.asset");
+                var scenePath = _context.scene.path;
+                string sceneDirectory = Path.GetDirectoryName(scenePath);
+
+                foreach (var item in _bakeResults)
+                {
+                    var data = item.data;
+
+                    var diffuseTex = new Texture2D((int)data.width, (int)data.height, TextureFormat.RGBAFloat, 1, false);
+                    diffuseTex.SetPixels(item.pixelsDiffuseCopy);
+                    var fileName = $"{_context.scene.name} LightmapDiffuse_{data.group_index}";
+                    diffuseTex.name = fileName;
+
+                    var assets = new UnityEngine.Object[] { diffuseTex };
+                    var path = Path.Combine(sceneDirectory, $"{fileName}.asset");
+                    InternalEditorUtility.SaveToSerializedFileAndForget(assets, path, false);
+                    // AssetDatabase.CreateAsset(texture, $"Assets/{fileName}.asset");
 
 
-                AssetDatabase.ImportAsset(path);
-                var loadedAsset = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
-                // var lmData = new LightmapStorage.LightmapData
-                // {
-                //     diffuse = loadedAsset,
-                //     directional = null,
-                //     shadowmask = null
-                // };
-                // lightmapDatas.Add(lmData);
+                    AssetDatabase.ImportAsset(path);
+                    var loadedAsset = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
+                    var lmData = new LightmapData
+                    {
+                        lightmapColor = loadedAsset,
+                        lightmapDir = null,
+                        shadowMask = null
+                    };
+                    lightmapDatas.Add(lmData);
+                }
+
+                // EditorUtility.SetDirty(_context.baker);
+
+                using var lda = new SerializedObject(_context.storage);
+                LightingData.InspectorModeObject.SetValue(lda, InspectorMode.DebugInternal);
+
+                Debug.Assert(_context.storage != null);
+
+                var lightmapsProp = lda.FindProperty("m_Lightmaps");
+                Debug.Assert(lightmapsProp != null);
+
+                lightmapsProp.arraySize = lightmapDatas.Count;
+                for (int i = 0; i < lightmapDatas.Count; i++)
+                {
+                    var element = lightmapsProp.GetArrayElementAtIndex(i);
+
+                    element.FindPropertyRelative("m_Lightmap").objectReferenceValue = lightmapDatas[i].lightmapColor;
+                    element.FindPropertyRelative("m_DirLightmap").objectReferenceValue = lightmapDatas[i].lightmapDir;
+                    element.FindPropertyRelative("m_ShadowMask").objectReferenceValue = lightmapDatas[i].shadowMask;
+                }
+
+
+                // storage.lightmapDatas = lightmapDatas.ToList();
+                // storage. = LightmapsMode.NonDirectional;
+
+
+                var storagePath = Path.Combine(sceneDirectory, $"{_context.scene.name} LightmapStorage.asset");
+                EditorSceneManager.MarkSceneDirty(_context.scene);
+                lda.ApplyModifiedPropertiesWithoutUndo();
             }
-
-            using var storage = new SerializedObject(_context.storage);
-            EditorUtility.SetDirty(_context.baker);
-
-
-            // storage.lightmapDatas = lightmapDatas.ToList();
-            // storage. = LightmapsMode.NonDirectional;
-
-
-            var storagePath = Path.Combine(sceneDirectory, $"{_context.scene.name} LightmapStorage.asset");
-            EditorSceneManager.MarkSceneDirty(_context.scene);
-
-            _bakeResults = new();
-            _isComplete = false;
-            _running = false;
-            _context = null;
-            EditorApplication.update -= PollBakeComplete;
-
-            storage.ApplyModifiedPropertiesWithoutUndo();
+            finally
+            {
+                _bakeResults = new();
+                _isComplete = false;
+                _running = false;
+                _context = null;
+                EditorApplication.update -= PollBakeComplete;
+            }
         }
 
         public static void Start(LightmapBaker baker, Bindings.StilbConfig config)

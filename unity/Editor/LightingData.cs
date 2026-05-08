@@ -3,7 +3,6 @@ using UnityEditor;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using UnityEditor.SceneManagement;
-using Microsoft.SqlServer.Server;
 
 namespace stilb
 {
@@ -11,6 +10,11 @@ namespace stilb
     {
         private const string TempScenePath = "Packages/io.github.z3y.stilb/Editor/Scene/Temp.unity";
         private const string TempLightingDataPath = "Packages/io.github.z3y.stilb/Editor/Scene/Temp/LightingData.asset";
+
+        // todo https://github.com/pema99/GITweaks/blob/master/Editor/GITweaksLightingDataAssetEditor.cs
+
+        public static System.Reflection.PropertyInfo InspectorModeObject =
+                    typeof(SerializedObject).GetProperty("inspectorMode", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
 
         public static LightingDataAsset CreateAsset(Scene scene)
         {
@@ -65,7 +69,6 @@ namespace stilb
             lda.ApplyModifiedPropertiesWithoutUndo();
 
             Lightmapping.lightingDataAsset = lightingDataAsset;
-            throw new System.Exception("a");
             return lightingDataAsset;
         }
     }

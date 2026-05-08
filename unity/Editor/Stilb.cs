@@ -57,7 +57,7 @@ namespace stilb
 
         public LightingDataAsset storage;
         public Scene scene;
-        public LightmapBaker baker;
+        // public LightmapBaker baker;
 
         private static int GetDepth(Transform t)
         {
@@ -68,9 +68,9 @@ namespace stilb
 
         public BakeContext(LightmapBaker baker)
         {
-            this.baker = baker;
+            // this.baker = baker;
+            storage = LightingData.CreateAsset(SceneManager.GetActiveScene());
             scene = SceneManager.GetActiveScene();
-            storage = LightingData.CreateAsset(scene);
 
             var rootObjects = scene.GetRootGameObjects().Where(x => x.activeInHierarchy);
 
