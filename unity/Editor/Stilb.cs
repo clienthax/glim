@@ -55,7 +55,7 @@ namespace stilb
         public List<Stilb.MeshData> sceneMesh = new();
         public List<BakeContextGroup> groups = new();
 
-        public LightmapStorage storage;
+        public LightingDataAsset storage;
         public Scene scene;
         public LightmapBaker baker;
 
@@ -69,9 +69,8 @@ namespace stilb
         public BakeContext(LightmapBaker baker)
         {
             this.baker = baker;
-            storage = ScriptableObject.CreateInstance<LightmapStorage>();
             scene = SceneManager.GetActiveScene();
-            storage.scene = scene;
+            storage = LightingData.CreateAsset(scene);
 
             var rootObjects = scene.GetRootGameObjects().Where(x => x.activeInHierarchy);
 
@@ -140,13 +139,13 @@ namespace stilb
                     mixedLightingMode = MixedLightingMode.IndirectOnly
                 };
 
-                var info = new LightmapStorage.LightsInfo
-                {
-                    id = lightIds[i].ToString(),
-                    isBaked = true,
-                };
+                // var info = new LightmapStorage.LightsInfo
+                // {
+                //     id = lightIds[i].ToString(),
+                //     isBaked = true,
+                // };
 
-                storage.lights.Add(info);
+                // storage.lights.Add(info);
             }
 
 
@@ -212,13 +211,13 @@ namespace stilb
                 for (int i = 0; i < rendererArray.Length; i++)
                 {
                     MeshRenderer mr = rendererArray[i];
-                    var info = new LightmapStorage.RendererInfo
-                    {
-                        lightmapIndex = groupIndex,
-                        lightmapScaleOffset = new Vector4(1, 1, 0, 0),
-                        id = ids[i].ToString()
-                    };
-                    storage.renderers.Add(info);
+                    // var info = new LightmapStorage.RendererInfo
+                    // {
+                    //     lightmapIndex = groupIndex,
+                    //     lightmapScaleOffset = new Vector4(1, 1, 0, 0),
+                    //     id = ids[i].ToString()
+                    // };
+                    // storage.renderers.Add(info);
                 }
 
                 groups.Add(new BakeContextGroup(lightmapGroup, rendererArray));

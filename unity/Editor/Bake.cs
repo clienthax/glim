@@ -51,7 +51,7 @@ namespace stilb
 
             Debug.Log("Bake Complete");
 
-            List<LightmapStorage.LightmapData> lightmapDatas = new();
+            // List<LightmapStorage.LightmapData> lightmapDatas = new();
 
             var scenePath = _context.scene.path;
             string sceneDirectory = Path.GetDirectoryName(scenePath);
@@ -73,33 +73,33 @@ namespace stilb
 
                 AssetDatabase.ImportAsset(path);
                 var loadedAsset = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
-                var lmData = new LightmapStorage.LightmapData
-                {
-                    diffuse = loadedAsset,
-                    directional = null,
-                    shadowmask = null
-                };
-                lightmapDatas.Add(lmData);
+                // var lmData = new LightmapStorage.LightmapData
+                // {
+                //     diffuse = loadedAsset,
+                //     directional = null,
+                //     shadowmask = null
+                // };
+                // lightmapDatas.Add(lmData);
             }
 
-            var storage = _context.storage;
-            _context.baker.storage = storage;
+            using var storage = new SerializedObject(_context.storage);
             EditorUtility.SetDirty(_context.baker);
 
-            storage.lightmapDatas = lightmapDatas.ToList();
-            storage.lightmapsMode = LightmapsMode.NonDirectional;
-            EditorUtility.SetDirty(storage);
+
+            // storage.lightmapDatas = lightmapDatas.ToList();
+            // storage. = LightmapsMode.NonDirectional;
+
 
             var storagePath = Path.Combine(sceneDirectory, $"{_context.scene.name} LightmapStorage.asset");
-            storage.ApplyLightmaps();
-
-            AssetDatabase.CreateAsset(storage, storagePath);
+            EditorSceneManager.MarkSceneDirty(_context.scene);
 
             _bakeResults = new();
             _isComplete = false;
             _running = false;
             _context = null;
             EditorApplication.update -= PollBakeComplete;
+
+            storage.ApplyModifiedPropertiesWithoutUndo();
         }
 
         public static void Start(LightmapBaker baker, Bindings.StilbConfig config)
