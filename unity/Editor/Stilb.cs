@@ -55,6 +55,10 @@ namespace stilb
         public List<Stilb.MeshData> sceneMesh = new();
         public List<BakeContextGroup> groups = new();
 
+        public LightmapStorage storage;
+        public Scene scene;
+        public LightmapBaker baker;
+
         private static int GetDepth(Transform t)
         {
             int depth = 0;
@@ -62,13 +66,18 @@ namespace stilb
             return depth;
         }
 
-        public BakeContext(LightmapGroup bakerGlobalGroup)
+        public BakeContext(LightmapBaker baker)
         {
-            var scene = SceneManager.GetActiveScene();
+            this.baker = baker;
+            storage = ScriptableObject.CreateInstance<LightmapStorage>();
+            scene = SceneManager.GetActiveScene();
+            storage.scene = scene;
 
             var rootObjects = scene.GetRootGameObjects().Where(x => x.activeInHierarchy);
 
             var lights = rootObjects.SelectMany(x => x.GetComponentsInChildren<Light>(false)).ToArray();
+
+            var addedLights = new List<Light>();
             foreach (var light in lights)
             {
                 // todo mixed
@@ -77,13 +86,13 @@ namespace stilb
                     continue;
                 }
 
-                light.bakingOutput = new LightBakingOutput
-                {
-                    isBaked = true,
-                    lightmapBakeType = LightmapBakeType.Baked,
-                    mixedLightingMode = MixedLightingMode.IndirectOnly
-                };
-                EditorUtility.SetDirty(light);
+                // light.bakingOutput = new LightBakingOutput
+                // {
+                //     isBaked = true,
+                //     lightmapBakeType = LightmapBakeType.Baked,
+                //     mixedLightingMode = MixedLightingMode.IndirectOnly
+                // };
+                // EditorUtility.SetDirty(light);
 
                 // todo color temperature
                 var linear = light.color.linear;
@@ -112,8 +121,32 @@ namespace stilb
                     shadow_radius_or_angle = radiusOrAngle,
                 };
 
-
+                addedLights.Add(light);
                 sceneLights.Add(l);
+            }
+
+
+            var lightsArray = addedLights.ToArray();
+            var lightIds = new GlobalObjectId[lightsArray.Length];
+            GlobalObjectId.GetGlobalObjectIdsSlow(lightsArray, lightIds);
+            for (int i = 0; i < lightsArray.Length; i++)
+            {
+                var l = lightIds[i];
+
+                var bakeOutput = new LightBakingOutput
+                {
+                    isBaked = true,
+                    lightmapBakeType = LightmapBakeType.Baked,
+                    mixedLightingMode = MixedLightingMode.IndirectOnly
+                };
+
+                var info = new LightmapStorage.LightsInfo
+                {
+                    id = lightIds[i].ToString(),
+                    bakeOutput = bakeOutput,
+                };
+
+                storage.lights.Add(info);
             }
 
 
@@ -163,7 +196,7 @@ namespace stilb
                     unclaimedRenderers.Add(r);
                 }
             }
-            var globalGroup = bakerGlobalGroup == null ? ScriptableObject.CreateInstance<LightmapGroup>() : bakerGlobalGroup;
+            var globalGroup = baker.globalGroup == null ? ScriptableObject.CreateInstance<LightmapGroup>() : baker.globalGroup;
             if (unclaimedRenderers.Count > 0)
             {
                 groupMap[globalGroup] = unclaimedRenderers;
@@ -173,16 +206,22 @@ namespace stilb
             foreach (var (lightmapGroup, renderers) in groupMap)
             {
                 var rendererArray = renderers.ToArray();
+                var ids = new GlobalObjectId[rendererArray.Length];
 
-                foreach (var mr in rendererArray)
+                GlobalObjectId.GetGlobalObjectIdsSlow(rendererArray, ids);
+                for (int i = 0; i < rendererArray.Length; i++)
                 {
-                    mr.lightmapIndex = (int)groupIndex;
-                    // todo scale and offset packing
-                    mr.lightmapScaleOffset = new Vector4(1, 1, 0, 0);
-                    EditorUtility.SetDirty(mr);
+                    MeshRenderer mr = rendererArray[i];
+                    var info = new LightmapStorage.RendererInfo
+                    {
+                        lightmapIndex = groupIndex,
+                        lightmapScaleOffset = new Vector4(1, 1, 0, 0),
+                        id = ids[i].ToString()
+                    };
+                    storage.renderers.Add(info);
                 }
 
-                this.groups.Add(new BakeContextGroup(lightmapGroup, rendererArray));
+                groups.Add(new BakeContextGroup(lightmapGroup, rendererArray));
                 sceneMesh.AddRange(Stilb.ExtractMeshData(rendererArray, groupIndex));
                 groupIndex++;
             }
@@ -192,7 +231,7 @@ namespace stilb
                 throw new InvalidOperationException("No lightmap groups found.");
             }
 
-            if (!bakerGlobalGroup)
+            if (!baker.globalGroup)
             {
                 ScriptableObject.DestroyImmediate(globalGroup);
             }

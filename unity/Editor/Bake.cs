@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using System.Threading;
 using UnityEditor;
 using UnityEditor.SceneManagement;
@@ -21,6 +22,7 @@ namespace stilb
         static List<ReadbackResult> _bakeResults = new();
         static volatile bool _isComplete = false;
         static volatile bool _running = false;
+        static BakeContext _context = null;
 
         [AOT.MonoPInvokeCallback(typeof(Bindings.ReadbackCallback))]
         public static void OnReadback(Bindings.ReadbackData data)
@@ -42,6 +44,11 @@ namespace stilb
                 return;
             }
 
+            if (_bakeResults.Count == 0)
+            {
+                return;
+            }
+
             Debug.Log("Bake Complete");
 
             string lightmapFolder = "Assets/StilbLightmaps/";
@@ -52,7 +59,10 @@ namespace stilb
                 Directory.CreateDirectory(lightmapFolderFull);
             }
 
-            List<LightmapData> lightmapDatas = new();
+            List<LightmapStorage.LightmapData> lightmapDatas = new();
+
+            var scenePath = _context.scene.path;
+            string sceneDirectory = Path.GetDirectoryName(scenePath);
 
             foreach (var item in _bakeResults)
             {
@@ -64,34 +74,42 @@ namespace stilb
                 diffuseTex.name = fileName;
 
                 var assets = new UnityEngine.Object[] { diffuseTex };
-                var path = $"Assets/{fileName}.asset";
+                var path = Path.Combine(sceneDirectory, $"{fileName}.asset");
                 InternalEditorUtility.SaveToSerializedFileAndForget(assets, path, false);
                 // AssetDatabase.CreateAsset(texture, $"Assets/{fileName}.asset");
 
 
                 AssetDatabase.ImportAsset(path);
                 var loadedAsset = AssetDatabase.LoadAssetAtPath<Texture2D>(path);
-                var lmData = new LightmapData
+                var lmData = new LightmapStorage.LightmapData
                 {
-                    lightmapColor = loadedAsset,
-                    lightmapDir = null,
-                    shadowMask = null
+                    diffuse = loadedAsset,
+                    directional = null,
+                    shadowmask = null
                 };
                 lightmapDatas.Add(lmData);
             }
 
+            var storage = _context.storage;
+            _context.baker.storage = storage;
+            EditorUtility.SetDirty(_context.baker);
 
-            var scene = SceneManager.GetActiveScene();
-            LightmapSettings.lightmaps = lightmapDatas.ToArray();
-            LightmapSettings.lightmapsMode = LightmapsMode.NonDirectional;
-            EditorSceneManager.MarkSceneDirty(scene);
+            storage.lightmapDatas = lightmapDatas.ToList();
+            storage.lightmapsMode = LightmapsMode.NonDirectional;
+            EditorUtility.SetDirty(storage);
+
+            var storagePath = Path.Combine(sceneDirectory, $"{_context.scene.name}_LightmapStorage.asset");
+            storage.ApplyLightmaps();
+
+            AssetDatabase.CreateAsset(storage, storagePath);
 
             _bakeResults = new();
             _isComplete = false;
             _running = false;
+            _context = null;
         }
 
-        public static void Start(LightmapGroup globalGroup, Bindings.StilbConfig config)
+        public static void Start(LightmapBaker baker, Bindings.StilbConfig config)
         {
             if (_running)
             {
@@ -104,7 +122,8 @@ namespace stilb
             EditorApplication.update += CheckBakeComplete;
 
 
-            var ctx = new BakeContext(globalGroup);
+            var ctx = new BakeContext(baker);
+            _context = ctx;
 
             _running = true;
 
@@ -141,6 +160,8 @@ namespace stilb
                             }
                         }
                     }
+                    // free
+                    ctx.sceneMesh = new();
 
                     foreach (var light in ctx.sceneLights)
                     {
@@ -165,7 +186,7 @@ namespace stilb
                             }
                         }
                     }
-
+                    ctx.groups = new();
 
                     Bindings.app_run(app);
 

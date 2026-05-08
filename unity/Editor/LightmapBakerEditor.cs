@@ -48,7 +48,7 @@ namespace stilb
                     is_preview = false,
                     coordinate_system = Bindings.CoordinateSystem.Unity,
                 };
-                Bake.Start(baker.globalGroup, config);
+                Bake.Start(baker, config);
             };
             root.Add(startBakeButton);
 
@@ -85,7 +85,7 @@ namespace stilb
                 _config.camera_position = camera.transform.position;
                 _config.camera_forward = camera.transform.forward;
                 _config.preview_settings = _previewSettings;
-                Bake.Start(baker.globalGroup, _config);
+                Bake.Start(baker, _config);
             };
 
             var width = new UnsignedIntegerField("Width") { value = _previewSettings.width };
