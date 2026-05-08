@@ -23,7 +23,7 @@ namespace stilb
         public struct LightsInfo
         {
             public string id;
-            public LightBakingOutput bakeOutput;
+            public bool isBaked;
         }
 
         [System.Serializable]
@@ -102,7 +102,14 @@ namespace stilb
                 var l = lightObjects[i];
                 if (l == null) continue;
 
-                l.bakingOutput = info.bakeOutput;
+                var bakeOutput = new LightBakingOutput
+                {
+                    isBaked = info.isBaked,
+                    lightmapBakeType = LightmapBakeType.Baked,
+                    mixedLightingMode = MixedLightingMode.IndirectOnly
+                };
+
+                l.bakingOutput = bakeOutput;
                 EditorUtility.SetDirty(l);
             }
 

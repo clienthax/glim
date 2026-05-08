@@ -143,7 +143,7 @@ namespace stilb
                 var info = new LightmapStorage.LightsInfo
                 {
                     id = lightIds[i].ToString(),
-                    bakeOutput = bakeOutput,
+                    isBaked = true,
                 };
 
                 storage.lights.Add(info);

@@ -37,7 +37,7 @@ namespace stilb
             });
         }
 
-        static void CheckBakeComplete()
+        static void PollBakeComplete()
         {
             if (!_isComplete)
             {
@@ -51,14 +51,6 @@ namespace stilb
 
             Debug.Log("Bake Complete");
 
-            string lightmapFolder = "Assets/StilbLightmaps/";
-            string lightmapFolderFull = Path.GetFullPath(lightmapFolder);
-
-            if (!Directory.Exists(lightmapFolderFull))
-            {
-                Directory.CreateDirectory(lightmapFolderFull);
-            }
-
             List<LightmapStorage.LightmapData> lightmapDatas = new();
 
             var scenePath = _context.scene.path;
@@ -70,7 +62,7 @@ namespace stilb
 
                 var diffuseTex = new Texture2D((int)data.width, (int)data.height, TextureFormat.RGBAFloat, 1, false);
                 diffuseTex.SetPixels(item.pixelsDiffuseCopy);
-                var fileName = $"Diffuse{data.group_index}";
+                var fileName = $"{_context.scene.name} LightmapDiffuse_{data.group_index}";
                 diffuseTex.name = fileName;
 
                 var assets = new UnityEngine.Object[] { diffuseTex };
@@ -98,7 +90,7 @@ namespace stilb
             storage.lightmapsMode = LightmapsMode.NonDirectional;
             EditorUtility.SetDirty(storage);
 
-            var storagePath = Path.Combine(sceneDirectory, $"{_context.scene.name}_LightmapStorage.asset");
+            var storagePath = Path.Combine(sceneDirectory, $"{_context.scene.name} LightmapStorage.asset");
             storage.ApplyLightmaps();
 
             AssetDatabase.CreateAsset(storage, storagePath);
@@ -107,6 +99,7 @@ namespace stilb
             _isComplete = false;
             _running = false;
             _context = null;
+            EditorApplication.update -= PollBakeComplete;
         }
 
         public static void Start(LightmapBaker baker, Bindings.StilbConfig config)
@@ -118,8 +111,8 @@ namespace stilb
             }
             _isComplete = false;
             _bakeResults = new();
-            EditorApplication.update -= CheckBakeComplete;
-            EditorApplication.update += CheckBakeComplete;
+            EditorApplication.update -= PollBakeComplete;
+            EditorApplication.update += PollBakeComplete;
 
 
             var ctx = new BakeContext(baker);
