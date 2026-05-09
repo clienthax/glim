@@ -16,6 +16,50 @@ namespace stilb
         public static System.Reflection.PropertyInfo InspectorModeObject =
                     typeof(SerializedObject).GetProperty("inspectorMode", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
 
+        public struct SerializedObjectID : System.IEquatable<SerializedObjectID>
+        {
+            public long MainLFID; // If prefab, LFID in MeshRenderer in prefab stage, else LFID of object
+            public long PrefabLFID; // If prefab, LFID of "Prefab instance" object, points to prefab
+
+            public SerializedObjectID(long main, long prefab)
+            {
+                MainLFID = main;
+                PrefabLFID = prefab;
+            }
+
+            public bool Equals(SerializedObjectID other) => other.MainLFID == MainLFID && other.PrefabLFID == PrefabLFID;
+            public override bool Equals(object obj) => obj is SerializedObjectID id && Equals(id);
+            public static bool operator ==(SerializedObjectID a, SerializedObjectID b) => a.Equals(b);
+            public static bool operator !=(SerializedObjectID a, SerializedObjectID b) => !(a == b);
+            public override int GetHashCode() => System.HashCode.Combine(MainLFID, PrefabLFID);
+        }
+
+        public static SerializedObjectID ObjectToSOI(Object obj)
+        {
+            using var mainSO = new SerializedObject(obj);
+            InspectorModeObject.SetValue(mainSO, InspectorMode.DebugInternal);
+            long lfid = mainSO.FindProperty("m_LocalIdentfierInFile").longValue;
+
+            var prefabInstance = mainSO.FindProperty("m_PrefabInstance");
+            if (prefabInstance.objectReferenceValue != null)
+            {
+                using var prefabInstanceSO = new SerializedObject(prefabInstance.objectReferenceValue);
+                InspectorModeObject.SetValue(prefabInstanceSO, InspectorMode.DebugInternal);
+
+                using var correspondingSO = new SerializedObject(mainSO.FindProperty("m_CorrespondingSourceObject").objectReferenceValue);
+                InspectorModeObject.SetValue(correspondingSO, InspectorMode.DebugInternal);
+
+                long sourceLFID = correspondingSO.FindProperty("m_LocalIdentfierInFile").longValue;
+                long prefabLFID = prefabInstanceSO.FindProperty("m_LocalIdentfierInFile").longValue;
+
+                return new SerializedObjectID(sourceLFID, prefabLFID);
+            }
+            else
+            {
+                return new SerializedObjectID(lfid, 0);
+            }
+        }
+
         public static LightingDataAsset CreateAsset(Scene scene)
         {
             var scenePath = scene.path;

@@ -71,6 +71,8 @@ namespace stilb
             // this.baker = baker;
             storage = LightingData.CreateAsset(SceneManager.GetActiveScene());
             scene = SceneManager.GetActiveScene();
+            using var lda = new SerializedObject(storage);
+            LightingData.InspectorModeObject.SetValue(lda, InspectorMode.DebugInternal);
 
             var rootObjects = scene.GetRootGameObjects().Where(x => x.activeInHierarchy);
 
@@ -126,27 +128,28 @@ namespace stilb
 
 
             var lightsArray = addedLights.ToArray();
-            var lightIds = new GlobalObjectId[lightsArray.Length];
-            GlobalObjectId.GetGlobalObjectIdsSlow(lightsArray, lightIds);
-            for (int i = 0; i < lightsArray.Length; i++)
-            {
-                var l = lightIds[i];
+            var lightsProp = lda.FindProperty("m_Lights");
+            var lightsOutputsProp = lda.FindProperty("m_LightBakingOutputs");
+            Debug.Assert(lightsProp != null);
+            Debug.Assert(lightsOutputsProp != null);
 
-                var bakeOutput = new LightBakingOutput
-                {
-                    isBaked = true,
-                    lightmapBakeType = LightmapBakeType.Baked,
-                    mixedLightingMode = MixedLightingMode.IndirectOnly
-                };
+            // todo
+            // lightsProp.arraySize = lightsArray.Length;
+            // lightsOutputsProp.arraySize = lightsArray.Length;
+            // for (int i = 0; i < lightsArray.Length; i++)
+            // {
+            //     var outputElement = lightsOutputsProp.GetArrayElementAtIndex(i);
+            //     var lightsElement = lightsProp.GetArrayElementAtIndex(i);
 
-                // var info = new LightmapStorage.LightsInfo
-                // {
-                //     id = lightIds[i].ToString(),
-                //     isBaked = true,
-                // };
+            //     outputElement.FindPropertyRelative("m_ProbeOcclusionLightIndex").intValue = -1;
+            //     outputElement.FindPropertyRelative("m_OcclusionMaskChannel").intValue = -1;
 
-                // storage.lights.Add(info);
-            }
+            //     var mode = outputElement.FindPropertyRelative("m_LightmapBakeMode");
+            //     mode.FindPropertyRelative("m_LightmapBakeType").intValue = (int)LightmapBakeType.Baked;
+            //     mode.FindPropertyRelative("m_MixedLightingMode").intValue = (int)MixedLightingMode.Shadowmask;
+
+            //     outputElement.FindPropertyRelative("m_IsBaked").boolValue = true;
+            // }
 
 
             var allSelectors = rootObjects
@@ -205,19 +208,27 @@ namespace stilb
             foreach (var (lightmapGroup, renderers) in groupMap)
             {
                 var rendererArray = renderers.ToArray();
-                var ids = new GlobalObjectId[rendererArray.Length];
 
-                GlobalObjectId.GetGlobalObjectIdsSlow(rendererArray, ids);
+                var rendererDataIds = lda.FindProperty("m_LightmappedRendererDataIDs");
+                var rendererData = lda.FindProperty("m_LightmappedRendererData");
+                rendererDataIds.arraySize = rendererArray.Length;
+                rendererData.arraySize = rendererArray.Length;
+
                 for (int i = 0; i < rendererArray.Length; i++)
                 {
                     MeshRenderer mr = rendererArray[i];
-                    // var info = new LightmapStorage.RendererInfo
-                    // {
-                    //     lightmapIndex = groupIndex,
-                    //     lightmapScaleOffset = new Vector4(1, 1, 0, 0),
-                    //     id = ids[i].ToString()
-                    // };
-                    // storage.renderers.Add(info);
+                    var ids = rendererDataIds.GetArrayElementAtIndex(i);
+                    var lmData = rendererData.GetArrayElementAtIndex(i);
+
+                    var soi = LightingData.ObjectToSOI(mr);
+
+                    ids.Next(true);
+                    ids.longValue = soi.MainLFID;
+                    ids.Next(false);
+                    ids.longValue = soi.PrefabLFID;
+
+                    lmData.FindPropertyRelative("lightmapIndex").intValue = (int)groupIndex;
+                    lmData.FindPropertyRelative("lightmapST").vector4Value = new Vector4(1, 1, 0, 0);
                 }
 
                 groups.Add(new BakeContextGroup(lightmapGroup, rendererArray));
@@ -234,6 +245,8 @@ namespace stilb
             {
                 ScriptableObject.DestroyImmediate(globalGroup);
             }
+
+            lda.ApplyModifiedPropertiesWithoutUndo();
 
             Debug.Log($"Vertices: {sceneMesh.Sum(x => x.vertices.Length)}");
             Debug.Log($"Indices: {sceneMesh.Sum(x => x.triangles.Length)}");
