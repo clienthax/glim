@@ -390,13 +390,14 @@ namespace stilb
                 {
                     var evs = mr.enlightenVertexStream;
                     var avs = mr.additionalVertexStreams;
-                    if (avs && avs.HasVertexAttribute(VertexAttribute.TexCoord1))
-                    {
-                        uvs = avs.uv2;
-                    }
+
                     if (evs && evs.HasVertexAttribute(VertexAttribute.TexCoord1))
                     {
                         uvs = evs.uv2;
+                    }
+                    else if (avs && avs.HasVertexAttribute(VertexAttribute.TexCoord1))
+                    {
+                        uvs = avs.uv2;
                     }
                 }
 
