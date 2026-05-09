@@ -8,8 +8,8 @@ namespace stilb
 {
     public class LightingData
     {
-        private const string TempScenePath = "Packages/io.github.z3y.stilb/Editor/Scene/Temp.unity";
-        private const string TempLightingDataPath = "Packages/io.github.z3y.stilb/Editor/Scene/Temp/LightingData.asset";
+        public const string TempScenePath = "Packages/io.github.z3y.stilb/Editor/Scene/Temp.unity";
+        public const string TempLightingDataPath = "Packages/io.github.z3y.stilb/Editor/Scene/Temp/LightingData.asset";
 
         // todo https://github.com/pema99/GITweaks/blob/master/Editor/GITweaksLightingDataAssetEditor.cs
 
@@ -60,11 +60,20 @@ namespace stilb
             }
         }
 
-        public static LightingDataAsset CreateAsset(Scene scene)
+        public static LightingDataAsset CreateAsset(Scene targetScene)
         {
-            var scenePath = scene.path;
+            bool saved = EditorSceneManager.SaveCurrentModifiedScenesIfUserWantsTo();
+
+            if (!saved)
+            {
+                throw new System.Exception("Bake failed");
+            }
+
+            var scenePath = targetScene.path;
 
             Scene tempScene = EditorSceneManager.OpenScene(TempScenePath, OpenSceneMode.Additive);
+
+            // todo copy light probes
 
             // foreach (GameObject obj in scene.GetRootGameObjects())
             // {
@@ -77,7 +86,7 @@ namespace stilb
             // }
 
 
-            EditorSceneManager.CloseScene(scene, true);
+            EditorSceneManager.CloseScene(targetScene, true);
             EditorSceneManager.SaveScene(tempScene);
             EditorSceneManager.SetActiveScene(tempScene);
 
@@ -93,8 +102,8 @@ namespace stilb
             }
             EditorSceneManager.SaveScene(tempScene);
 
-            scene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
-            EditorSceneManager.SetActiveScene(scene);
+            targetScene = EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
+            EditorSceneManager.SetActiveScene(targetScene);
             EditorSceneManager.CloseScene(tempScene, true);
 
             string destPath = Path.Combine(Path.GetDirectoryName(scenePath), "LightingData.asset").Replace("\\", "/");
@@ -104,7 +113,7 @@ namespace stilb
             var lightingDataAsset = AssetDatabase.LoadAssetAtPath<LightingDataAsset>(destPath);
             using var lda = new SerializedObject(lightingDataAsset);
 
-            var sceneAsset = AssetDatabase.LoadAssetAtPath<SceneAsset>(scene.path);
+            var sceneAsset = AssetDatabase.LoadAssetAtPath<SceneAsset>(targetScene.path);
 
             var sceneProp = lda.FindProperty("m_Scene");
             Debug.Assert(sceneProp != null);

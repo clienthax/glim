@@ -111,6 +111,15 @@ namespace stilb
                 var storagePath = Path.Combine(sceneDirectory, $"{_context.scene.name} LightmapStorage.asset");
                 EditorSceneManager.MarkSceneDirty(_context.scene);
                 lda.ApplyModifiedPropertiesWithoutUndo();
+
+
+                EditorSceneManager.SaveScene(_context.scene);
+
+                // cursed
+                Scene tempScene = EditorSceneManager.OpenScene(LightingData.TempScenePath, OpenSceneMode.Additive);
+                EditorSceneManager.CloseScene(_context.scene, false);
+                EditorSceneManager.OpenScene(scenePath, OpenSceneMode.Single);
+                EditorSceneManager.CloseScene(tempScene, true);
             }
             finally
             {
@@ -135,7 +144,7 @@ namespace stilb
             EditorApplication.update += PollBakeComplete;
 
 
-            var ctx = new BakeContext(baker);
+            var ctx = new BakeContext(baker, config);
             _context = ctx;
 
             _running = true;

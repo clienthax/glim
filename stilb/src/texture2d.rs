@@ -1,4 +1,7 @@
-use std::ptr;
+use std::{
+    ptr,
+    sync::atomic::{AtomicU64, Ordering},
+};
 
 use ash::vk::{self, Handle};
 
@@ -13,6 +16,20 @@ pub struct Texture2D {
     image: vk::Image,
     memory: vk::DeviceMemory,
     view: vk::ImageView,
+
+    bytes: u64,
+}
+static ALLOCATED_MEMORY: AtomicU64 = AtomicU64::new(0);
+
+fn register_alloc(bytes: u64) {
+    let val = ALLOCATED_MEMORY.fetch_add(bytes, Ordering::Relaxed) + bytes;
+
+    let mb = val as f64 / (1024.0 * 1024.0);
+    println!("TextureMemory: {:.2} MiB", mb);
+}
+
+fn unregister_alloc(bytes: u64) {
+    ALLOCATED_MEMORY.fetch_sub(bytes, Ordering::Relaxed);
 }
 
 #[allow(dead_code)]
@@ -82,6 +99,8 @@ impl Texture2D {
 
         let view = unsafe { vk.device.create_image_view(&create_info, None) }.unwrap();
 
+        register_alloc(mem_reqs.size);
+
         Self {
             format,
             image,
@@ -90,6 +109,7 @@ impl Texture2D {
             width,
             height,
             layout,
+            bytes: mem_reqs.size,
         }
     }
 
@@ -103,6 +123,8 @@ impl Texture2D {
             vk.device.free_memory(self.memory, None);
             vk.device.destroy_image(self.image, None);
         };
+
+        unregister_alloc(self.bytes);
 
         self.view = vk::ImageView::null();
         self.memory = vk::DeviceMemory::null();

@@ -362,7 +362,7 @@ mod tests {
 
         let config = StilbConfig {
             coordinate_system: CoordinateSystem::Default,
-            is_preview: false,
+            is_preview: true,
             camera_position: Vector3::new(0.0, 0.0, 5.0),
             camera_forward: Vector3::FORWARD,
             preview_settings,
