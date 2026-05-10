@@ -17,6 +17,7 @@ use crate::{
     lights::{GpuLights, Light},
     math::Vector3,
     mesh::{GpuMesh, Mesh, VulkanAs, create_tlas},
+    oidn::oidn_denoise,
     texture2d::Texture2D,
     vulkan_context::{VulkanConfig, VulkanContext},
     window::{initialize_window, update_camera},
@@ -30,6 +31,7 @@ mod graphics_shader;
 mod lights;
 mod math;
 mod mesh;
+mod oidn;
 mod test;
 mod texture2d;
 mod vulkan_cmd;
@@ -538,7 +540,15 @@ fn bake_lightmaps(app: &mut Stilb) {
 
             let callback = app.config.callback;
 
-            let pixels_read = diffuse.read_pixels(&app.vk);
+            let mut pixels_read = diffuse.read_pixels(&app.vk);
+
+            if settings.denoise {
+                pixels_read = oidn_denoise(
+                    &pixels_read,
+                    settings.width as usize,
+                    settings.height as usize,
+                );
+            }
 
             let readback_data = ReadbackData {
                 group_index,

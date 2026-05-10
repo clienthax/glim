@@ -15,3 +15,4 @@
 - [ ] Seam stiching
 - [ ] UV Packing with scale offset
 - [ ] UV Packing per chart
+- [ ] Include OIDN dlls
