@@ -100,6 +100,7 @@ impl Oidn {
             let commit_device: FnCommitDevice = *lib.get(b"oidnCommitDevice\0")?;
             let new_filter: FnNewFilter = *lib.get(b"oidnNewFilter\0")?;
 
+            // todo GPU device
             let device = new_device(OIDNDeviceType::CPU);
             commit_device(device);
             let filter = new_filter(device, c"RT".as_ptr());

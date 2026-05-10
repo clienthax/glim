@@ -15,6 +15,7 @@
 - [ ] UV Packing with scale offset
 - [ ] UV Packing per chart
 - [ ] Include OIDN dlls
+- [ ] Set all the globals in the unity meta pass
 
 # Complete
 - [x] OIDN2 bindings and apply denoise

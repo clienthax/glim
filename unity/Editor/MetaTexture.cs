@@ -76,12 +76,15 @@ namespace stilb
             cmd.SetViewProjectionMatrices(view, proj);
 
             cmd.SetGlobalVector("unity_MetaVertexControl", new Vector4(1, 0, 0, 0));
+            cmd.SetGlobalFloat("unity_OneOverOutputBoost", 1.0f);
+            cmd.SetGlobalFloat("unity_MaxOutputValue", 1.0f);
+
+            // todo figure out if 0 or 1
+            cmd.SetGlobalFloat("unity_UseLinearSpace", 1.0f);
 
             if (type == AtlasType.Albedo)
             {
                 cmd.SetGlobalVector("unity_MetaFragmentControl", new Vector4(1, 0, 0, 0));
-                cmd.SetGlobalFloat("unity_OneOverOutputBoost", 1.0f);
-                cmd.SetGlobalFloat("unity_MaxOutputValue", 1.0f);
             }
             else if (type == AtlasType.Emission)
             {
