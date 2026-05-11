@@ -330,8 +330,7 @@ impl Texture2D {
         src_access_mask: vk::AccessFlags,
         dst_access_mask: vk::AccessFlags,
     ) -> vk::ImageMemoryBarrier<'a> {
-        // assert!(self.layout != new_layout);
-
+        #[cfg(debug_assertions)]
         if self.layout == new_layout {
             panic!(
                 "texture {:#x} layout already correct: {:?} -> {:?}",

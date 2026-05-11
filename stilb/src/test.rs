@@ -356,7 +356,7 @@ mod tests {
             width: 1024,
             height: 1024,
             max_samples: 256,
-            bounce_count: 2,
+            bounce_count: 3,
             denoise: false,
         };
 

@@ -149,6 +149,10 @@ void main(uint3 threadID: SV_DispatchThreadID)
     // todo backface gi
     bool backfaceGI = true;
 
+    // todo:
+    // fix emission and light bounce count mismatch
+    // emissions have bounceCount-1 bounces
+
     // bounces
     for (uint bounceIndex = 0; bounceIndex < bounceCount; bounceIndex++)
     {
