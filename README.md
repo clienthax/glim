@@ -16,6 +16,8 @@
 - [ ] UV Packing per chart
 - [ ] Include OIDN dlls
 - [ ] Set all the globals in the unity meta pass
+- [ ] Configurable nearest and linear sampler
+- [ ] Clamp max samples and bounces
 
 # Complete
 - [x] OIDN2 bindings and apply denoise

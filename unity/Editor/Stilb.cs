@@ -414,7 +414,24 @@ namespace stilb
                 transform.TransformPoints(vertices);
                 transform.TransformDirections(normals);
 
+                bool isNegativeScale = (transform.lossyScale.x * transform.lossyScale.y * transform.lossyScale.z) < 0;
+
                 // todo move to rust
+
+                if (isNegativeScale)
+                {
+                    for (int j = 0; j < normals.Length; j++)
+                    {
+                        normals[j] = -normals[j];
+                    }
+                    for (int j = 0; j < triangles.Length; j += 3)
+                    {
+                        int temp = triangles[j];
+                        triangles[j] = triangles[j + 1];
+                        triangles[j + 1] = temp;
+                    }
+                }
+
                 // Vector4 scaleOffset = renderers[i].lightmapScaleOffset;
                 // Vector2 scale = new(scaleOffset.x, scaleOffset.y);
                 // Vector2 offset = new(scaleOffset.z, scaleOffset.w);
