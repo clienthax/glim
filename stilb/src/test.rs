@@ -66,6 +66,13 @@ mod tests {
         save_bmp(file_name.as_str(), data.width, data.height, &pixels).unwrap();
     }
 
+    #[unsafe(no_mangle)]
+    pub extern "C" fn test_probes_callback(data: ReadbackProbesData) {
+        let probes = unsafe { std::slice::from_raw_parts(data.probes, data.pixels_count as usize) };
+
+        println!("Baked Probes:\n {:#?}", &probes);
+    }
+
     #[test]
     fn test_render() {
         let preview_settings = LightmapSettings {
@@ -84,6 +91,7 @@ mod tests {
             preview_settings,
             throttle_preview_ms: 1,
             callback: test_save_callback,
+            probes_callback: test_probes_callback,
         };
 
         config.camera_forward = Vector3 {
@@ -170,7 +178,14 @@ mod tests {
 
         let test_probes = false;
         if test_probes {
-            app_add_probe(app, Vector3::new(0.0, 0.0, 0.0));
+            let mut offset = 0.1;
+            for _ in 0..10 {
+                app_add_probe(app, Vector3::new(0.0, offset, 0.0));
+                app_add_probe(app, Vector3::new(0.0, offset, 0.0));
+                app_add_probe(app, Vector3::new(0.0, offset, 0.0));
+                app_add_probe(app, Vector3::new(0.0, offset, 0.0));
+                offset += 0.1;
+            }
         }
 
         app_run(app);

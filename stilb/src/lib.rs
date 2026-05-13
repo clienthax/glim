@@ -85,6 +85,7 @@ pub enum RenderTarget {
 }
 
 type ReadbackCallback = extern "C" fn(data: ReadbackData);
+type ReadbackProbesCallback = extern "C" fn(data: ReadbackProbesData);
 
 #[repr(C)]
 pub struct ReadbackData {
@@ -93,6 +94,12 @@ pub struct ReadbackData {
     pub width: u32,
     pub height: u32,
     pub pixels: *const f32,
+    pub pixels_count: u32,
+}
+
+#[repr(C)]
+pub struct ReadbackProbesData {
+    pub probes: *const SHProbe,
     pub pixels_count: u32,
 }
 
@@ -135,6 +142,7 @@ pub struct StilbConfig {
     pub camera_forward: Vector3,
 
     pub callback: ReadbackCallback,
+    pub probes_callback: ReadbackProbesCallback,
 }
 
 #[inline]
@@ -665,15 +673,19 @@ fn bake_lightmaps(app: &mut Stilb) {
             app.vk.device.device_wait_idle().unwrap();
         }
 
-        println!("Probes:\n{:#?}", &app.probes);
+        // println!("Probes:\n{:#?}", &app.probes);
         app.vk
             .download_buffer(app.probes_buffer.buffer, &mut app.probes);
 
         for probe in &mut app.probes {
             probe.normalize();
         }
+        let readback_data = ReadbackProbesData {
+            probes: app.probes.as_ptr(),
+            pixels_count: app.probes.len() as u32,
+        };
 
-        println!("Baked Probes:\n{:#?}", &app.probes);
+        (app.config.probes_callback)(readback_data);
     }
 
     unsafe {
