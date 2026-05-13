@@ -72,6 +72,57 @@ void ShadeLight(inout Spectrum spectrum, Light light, Surface surface, float2 xi
     SpectrumAdd(spectrum, color, L);
 }
 
+void ShadeLightDirect(inout Spectrum spectrum, Light light, float3 position, float2 xi, float3 throughput)
+{
+    Ray shadowRay;
+    shadowRay.P = position;
+    shadowRay.tMin = 0;
+
+    float falloff;
+    float3 L;
+    if (light.type == LightType::Directional)
+    {
+        L = GetDirectionalLightAngle(light.direction, light.ShadowRangeOrAngle, xi);
+        falloff = 1.0;
+
+        shadowRay.tMax = RAY_MAX;
+    }
+    else
+    {
+        L = RandomPointOnSphere(light.position, light.ShadowRangeOrAngle, xi);
+
+        float3 positionToLight = L - position;
+        L = normalize(positionToLight);
+
+        float distanceSquare = dot(positionToLight, positionToLight);
+
+        float rangeSq = light.range * light.range;
+
+// todo: add falloff type constant
+#if 1
+        falloff = GetDefaultUnityAttenuation(distanceSquare, 1.0 / rangeSq);
+#else
+        falloff = GetLightFalloff(distanceSquare, 1.0 / rangeSq);
+#endif
+
+        shadowRay.tMax = sqrt(distanceSquare);
+    }
+
+    shadowRay.D = L;
+
+    float3 color = falloff * light.color * throughput;
+
+    [branch] if (any(color > 0.0))
+    {
+        if (TraceShadowRay(shadowRay))
+        {
+            color = 0.0;
+        }
+    }
+
+    SpectrumAdd(spectrum, color, L);
+}
+
 [shader("compute")]
     [numthreads(64, 1, 1)] void
     main(uint3 threadID : SV_DispatchThreadID)
@@ -101,6 +152,13 @@ void ShadeLight(inout Spectrum spectrum, Light light, Surface surface, float2 xi
     // uint shuffledIndexMask = ~0u;
 
     uint pixelSeed = HashPcg3d(probeIndex.xxx).x;
+
+    float2 xiLight = SobolBurleySample2D(sampleIndex, dimension++, pixelSeed, shuffledIndexMask);
+
+    for (uint lightIndex = 0; lightIndex < lightCount; lightIndex++)
+    {
+        ShadeLightDirect(spectrum, Push.lights[lightIndex], probePosition, xiLight, throughput);
+    }
 
     float2 xiBounce0 = SobolBurleySample2D(sampleIndex, dimension++, pixelSeed, shuffledIndexMask);
 

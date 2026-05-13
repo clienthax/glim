@@ -266,6 +266,8 @@ void SpectrumAdd(inout Spectrum spectrum, float3 color, float3 wi)
 
     spectrum.color += color;
 
+    wi.z = -wi.z;
+
     spectrum.l1x += color * wi.x;
     spectrum.l1y += color * wi.y;
     spectrum.l1z += color * wi.z;

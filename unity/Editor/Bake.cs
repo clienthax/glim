@@ -142,11 +142,17 @@ namespace stilb
                     SerializedProperty prop = bakedCoeff.GetArrayElementAtIndex(i);
                     Bindings.SHProbe probeData = _bakeProbesResults[i];
 
+                    float invPi = 1.0f / Mathf.PI;
+
+                    probeData.l1x *= invPi;
+                    probeData.l1y *= invPi;
+                    probeData.l1z *= invPi;
+
                     float[] flatCoefficients = new float[27]
                     {
-                        probeData.l0.x, probeData.l1x.x, probeData.l1y.x, probeData.l1z.x, 0f, 0f, 0f, 0f, 0f,
-                        probeData.l0.y, probeData.l1x.y, probeData.l1y.y, probeData.l1z.y, 0f, 0f, 0f, 0f, 0f,
-                        probeData.l0.z, probeData.l1x.z, probeData.l1y.z, probeData.l1z.z, 0f, 0f, 0f, 0f, 0f
+                        probeData.l0.x*invPi, probeData.l1y.x, probeData.l1z.x, probeData.l1x.x, 0f, 0f, 0f, 0f, 0f,
+                        probeData.l0.y*invPi, probeData.l1y.y, probeData.l1z.y, probeData.l1x.y, 0f, 0f, 0f, 0f, 0f,
+                        probeData.l0.z*invPi, probeData.l1y.z, probeData.l1z.z, probeData.l1x.z, 0f, 0f, 0f, 0f, 0f
                     };
 
                     prop.Next(true);
@@ -156,6 +162,7 @@ namespace stilb
                         prop.floatValue = flatCoefficients[j];
                         prop.Next(false);
                     }
+
                 }
                 probesSo.ApplyModifiedPropertiesWithoutUndo();
 
