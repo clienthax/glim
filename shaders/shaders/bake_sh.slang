@@ -63,11 +63,13 @@ void ShadeLight(inout Spectrum spectrum, Light light, Surface surface, float2 xi
 
     [branch] if (any(color > 0.0))
     {
-        if (!TraceShadowRay(shadowRay))
+        if (TraceShadowRay(shadowRay))
         {
-            SpectrumAdd(spectrum, color, L);
+            color = 0.0;
         }
     }
+
+    SpectrumAdd(spectrum, color, L);
 }
 
 [shader("compute")]

@@ -7,6 +7,7 @@ use crate::{
     lights::Light,
     math::Vector3,
     mesh::{FfiMesh, Mesh},
+    sh::SHProbe,
     start_bake,
 };
 
@@ -66,6 +67,24 @@ pub extern "C" fn app_run(app: *mut Stilb) {
 }
 
 #[unsafe(no_mangle)]
+pub extern "C" fn app_add_probe(app: *mut Stilb, position: Vector3) {
+    let app = unsafe { &mut *app };
+
+    let probe = SHProbe {
+        l0: Vector3::ZERO,
+        sample_count: 0,
+        l1x: Vector3::ZERO,
+        position_x: position.x,
+        l1y: Vector3::ZERO,
+        position_y: position.y,
+        l1z: Vector3::ZERO,
+        position_z: position.z,
+    };
+
+    app.probes.push(probe);
+}
+
+#[unsafe(no_mangle)]
 pub extern "C" fn app_destroy(app: *mut Stilb) {
     if !app.is_null() {
         // Take ownership back from the pointer and let Box drop it
@@ -91,11 +110,12 @@ pub extern "C" fn app_destroy(app: *mut Stilb) {
         app.tlas.destroy(&app.vk);
         app.init_from_camera_shader.destroy(&app.vk);
 
-        if app.gpu_lights.address != 0 {
+        if app.cpu_lights.len() > 0 {
             app.gpu_lights.destroy(&app.vk);
         }
 
-        if !app.bake_probes_shader.pipeline.is_null() {
+        if app.probes.len() > 0 {
+            app.probes_buffer.destroy(&app.vk);
             app.bake_probes_shader.destroy(&app.vk);
         }
 

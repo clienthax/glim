@@ -4,7 +4,7 @@ static const float SH_L1_NORM = float(1.0 / 2.0 * sqrt(3.0 / float.getPi()));
 struct SHProbe
 {
     float3 L0;
-    float sampleCount;
+    uint sampleCount;
 
     float3 L1x;
     float positionX;

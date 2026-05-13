@@ -168,6 +168,11 @@ mod tests {
             emission_pixels.len() as u32,
         );
 
+        let test_probes = false;
+        if test_probes {
+            app_add_probe(app, Vector3::new(0.0, 0.0, 0.0));
+        }
+
         app_run(app);
 
         app_destroy(app);

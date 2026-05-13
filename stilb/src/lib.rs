@@ -367,7 +367,8 @@ fn start_bake(app: &mut Stilb) {
 
         let flags = vk::BufferUsageFlags::TRANSFER_DST
             | vk::BufferUsageFlags::STORAGE_BUFFER
-            | vk::BufferUsageFlags::SHADER_DEVICE_ADDRESS;
+            | vk::BufferUsageFlags::SHADER_DEVICE_ADDRESS
+            | vk::BufferUsageFlags::TRANSFER_SRC;
 
         app.probes_buffer = Buffer::new(&app.vk, &app.probes, flags);
     }
@@ -663,6 +664,16 @@ fn bake_lightmaps(app: &mut Stilb) {
         unsafe {
             app.vk.device.device_wait_idle().unwrap();
         }
+
+        println!("Probes:\n{:#?}", &app.probes);
+        app.vk
+            .download_buffer(app.probes_buffer.buffer, &mut app.probes);
+
+        for probe in &mut app.probes {
+            probe.normalize();
+        }
+
+        println!("Baked Probes:\n{:#?}", &app.probes);
     }
 
     unsafe {

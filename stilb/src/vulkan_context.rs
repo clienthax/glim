@@ -412,7 +412,6 @@ impl VulkanContext {
 
         unsafe {
             ptr::copy_nonoverlapping(src.as_ptr(), ptr, src.len());
-            // self.device.unmap_memory(staging_memory);
         };
 
         let cmd = self.begin_single_use_cmd();
@@ -429,6 +428,50 @@ impl VulkanContext {
         };
 
         self.end_single_use_cmd(cmd);
+
+        unsafe {
+            self.device.destroy_buffer(staging_buffer, None);
+            self.device.free_memory(staging_memory, None);
+        };
+    }
+
+    pub fn download_buffer<T: Copy>(&self, src: vk::Buffer, dst: &mut [T]) {
+        let size = (dst.len() * std::mem::size_of::<T>()) as vk::DeviceSize;
+
+        if size == 0 {
+            return;
+        }
+
+        let usage = vk::BufferUsageFlags::TRANSFER_DST;
+        let properties =
+            vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT;
+
+        let (staging_buffer, staging_memory) = self.create_buffer(size, usage, properties);
+
+        let cmd = self.begin_single_use_cmd();
+
+        let regions = vk::BufferCopy {
+            src_offset: 0,
+            dst_offset: 0,
+            size,
+        };
+
+        unsafe {
+            self.device
+                .cmd_copy_buffer(cmd, src, staging_buffer, &[regions])
+        };
+
+        self.end_single_use_cmd(cmd);
+
+        let ptr = unsafe {
+            self.device
+                .map_memory(staging_memory, 0, size, vk::MemoryMapFlags::empty())
+                .unwrap()
+        } as *const u8;
+
+        unsafe {
+            std::ptr::copy_nonoverlapping(ptr, dst.as_mut_ptr() as *mut u8, size as usize);
+        };
 
         unsafe {
             self.device.destroy_buffer(staging_buffer, None);
