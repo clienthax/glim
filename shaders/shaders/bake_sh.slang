@@ -21,7 +21,7 @@ struct PushConstants
     uint bounceCount;
 };
 
-void ShadeLight(inout Spectrum spectrum, Light light, Surface surface, float2 xi, float3 throughput)
+void ShadeLightIndirect(inout Spectrum spectrum, Light light, Surface surface, float2 xi, float3 throughput, float3 wi)
 {
     Ray shadowRay;
     shadowRay.P = RayOffset(surface.P, surface.Ng);
@@ -71,9 +71,9 @@ void ShadeLight(inout Spectrum spectrum, Light light, Surface surface, float2 xi
         }
     }
 
-    color *= 1.0 / float.getPi();
+    // color *= 1.0 / float.getPi();
 
-    SpectrumAdd(spectrum, color, L);
+    SpectrumAdd(spectrum, color, wi);
 }
 
 void ShadeLightDirect(inout Spectrum spectrum, Light light, float3 position, float2 xi, float3 throughput)
@@ -173,6 +173,7 @@ void ShadeLightDirect(inout Spectrum spectrum, Light light, float3 position, flo
     bounceRay.D = RandomDirectionSphere(xiBounce0);
     bounceRay.tMin = 0;
     bounceRay.tMax = RAY_MAX;
+    float3 wi = bounceRay.D;
 
     // bounces
     for (uint bounceIndex = 0; bounceIndex < bounceCount; bounceIndex++)
@@ -196,7 +197,7 @@ void ShadeLightDirect(inout Spectrum spectrum, Light light, float3 position, flo
             float3 bounceEmission = SampleEmission(surfaceBounce.uv, surfaceBounce.lightmapGroup).rgb;
             float3 bounceAlbedo = SampleAlbedo(surfaceBounce.uv, surfaceBounce.lightmapGroup).rgb;
 
-            SpectrumAdd(spectrum, bounceEmission * throughput, bounceRay.D);
+            SpectrumAdd(spectrum, bounceEmission * throughput, wi);
 
             throughput *= bounceAlbedo;
 
@@ -205,7 +206,7 @@ void ShadeLightDirect(inout Spectrum spectrum, Light light, float3 position, flo
 
             for (uint lightIndex = 0; lightIndex < lightCount; lightIndex++)
             {
-                ShadeLight(spectrum, Push.lights[lightIndex], surfaceBounce, xiLight, throughput);
+                ShadeLightIndirect(spectrum, Push.lights[lightIndex], surfaceBounce, xiLight, throughput, wi);
             }
 
             bounceRay.P = RayOffset(surfaceBounce.P, surfaceBounce.Ng);
