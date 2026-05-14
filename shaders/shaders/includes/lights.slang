@@ -52,6 +52,7 @@ float3 GetDirectionalLightAngle(float3 L, float angle, float2 xi)
 
 float GetLightFalloff(float distanceSquare, float invRangeSq)
 {
+    // return 1.0 / distanceSquare;
     float factor = distanceSquare * invRangeSq;
     float smoothFactor = saturate(1.0 - factor * factor);
     return (smoothFactor * smoothFactor) / (distanceSquare + 1.0);

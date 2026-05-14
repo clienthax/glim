@@ -190,7 +190,7 @@ void ShadeLightDirect(inout Spectrum spectrum, Light light, float3 position, flo
             float3 bounceEmission = SampleEmission(surfaceBounce.uv, surfaceBounce.lightmapGroup).rgb;
             float3 bounceAlbedo = SampleAlbedo(surfaceBounce.uv, surfaceBounce.lightmapGroup).rgb;
 
-            SpectrumAdd(spectrum, bounceEmission * throughput, bounceRay.D);
+            SpectrumAdd(spectrum, bounceEmission * throughput * float.getPi(), bounceRay.D);
 
             throughput *= bounceAlbedo;
 

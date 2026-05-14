@@ -225,7 +225,6 @@ void AccumulateSH(RWStructuredBuffer<SHProbe> buffer, uint probeIndex, Spectrum 
     SHProbe probe = buffer[probeIndex];
 
     probe.L0 += spectrum.color;
-    probe.sampleCount += spectrum.samples;
 
     probe.L1x += spectrum.l1x;
     probe.L1y += spectrum.l1y;
