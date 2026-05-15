@@ -1,30 +1,38 @@
 # Todo
 
 ## Priority
+- [ ] Alpha test
 - [ ] Spot lights
 - [ ] Spot light cookie with default unity cookie
-- [ ] Area lights
-- [ ] Alpha test
 - [ ] UV Packing with scale offset
+- [ ] Adjust sample positions
+- [ ] Directional lightmaps
 
 ## Other
+- [ ] Figure out why light probes are a bit darker
+- [ ] Include OIDN dlls
+- [ ] Area lights
+- [ ] L2 SH
+- [ ] Seam stitching
+- [ ] Add support for CWBVH
+- [ ] UV Packing per chart
+- [ ] Deringing
+- [ ] SH Lightmaps
+- [ ] Light tree
+- [ ] Blue noise
+- [ ] Stop closing and opening the scene twice
 - [ ] Proper sync for bake loop
+
+## Easy
 - [ ] Better panic handling
+- [ ] Sync scene view fov
 - [ ] Return codes for bake success, fail, cancel
 - [ ] Log callback
-- [ ] Stop closing and opening the scene twice
-- [ ] Add support for CWBVH
 - [ ] Double sided global illumination
-- [ ] Seam stiching
-- [ ] UV Packing per chart
-- [ ] Include OIDN dlls
 - [ ] Configurable nearest and linear sampler
+- [ ] Configurable probe samples and bounces
 - [ ] Clamp max samples and bounces
-- [ ] Blue noise
-- [ ] Light tree
-- [ ] Figure out why light probes are a bit darker
-- [ ] Deringing
-- [ ] L2 SH
+
 
 # Complete
 - [x] Export light probe positions and accumulate SH

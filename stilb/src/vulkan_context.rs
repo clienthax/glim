@@ -166,7 +166,7 @@ impl VulkanContext {
             device_extensions.push(vk::KHR_SWAPCHAIN_NAME.as_ptr());
         }
 
-        device_extensions.push(vk::KHR_BUFFER_DEVICE_ADDRESS_NAME.as_ptr());
+        // device_extensions.push(vk::KHR_BUFFER_DEVICE_ADDRESS_NAME.as_ptr());
 
         let avalilable_extensions = unsafe {
             instance

@@ -1,4 +1,6 @@
-#include "bake_bindings.slang"
+#pragma once
+
+#include "bindings.slang"
 
 static const float RAY_MAX = 10000.0;
 #define ALPHA_TEST 1
@@ -284,4 +286,27 @@ void SpectrumAdd(inout Spectrum spectrum, float3 color, float3 wi)
 #else
     spectrum.color += color;
 #endif
+}
+
+bool UseSmoothPosition(Surface surface)
+{
+    float3 rayP = RayOffset(surface.P, surface.Ng);
+    float3 diff = surface.smoothP - surface.P;
+    float d = length(diff);
+
+    if (d > 0.0001)
+    {
+        Ray probeRay;
+        probeRay.P = rayP;
+        probeRay.D = diff / d;
+        probeRay.tMin = 0;
+        probeRay.tMax = d;
+
+        if (!TraceShadowRay(probeRay))
+        {
+            return true;
+        }
+    }
+
+    return false;
 }

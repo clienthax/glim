@@ -1,5 +1,7 @@
 #pragma once
 
+#include "bindings.slang"
+
 struct Vertex
 {
     float3 position;
@@ -38,19 +40,19 @@ struct Surface
 
     uint lightmapGroup;
 
-    static Surface Get(uint *indices, Vertex *vertices, uint primitiveID, float2 bary)
+    static Surface Get(uint primitiveID, float2 bary)
     {
         float u = bary.x;
         float v = bary.y;
         float w = 1.0 - u - v;
 
-        uint i0 = indices[primitiveID * 3 + 0];
-        uint i1 = indices[primitiveID * 3 + 1];
-        uint i2 = indices[primitiveID * 3 + 2];
+        uint i0 = Indices[primitiveID * 3 + 0];
+        uint i1 = Indices[primitiveID * 3 + 1];
+        uint i2 = Indices[primitiveID * 3 + 2];
 
-        Vertex v0 = vertices[i0];
-        Vertex v1 = vertices[i1];
-        Vertex v2 = vertices[i2];
+        Vertex v0 = Vertices[i0];
+        Vertex v1 = Vertices[i1];
+        Vertex v2 = Vertices[i2];
 
         float3 p0 = v0.GetPosition();
         float3 p1 = v1.GetPosition();

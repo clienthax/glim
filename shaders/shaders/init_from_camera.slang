@@ -1,4 +1,4 @@
-#include "includes/bake_core.slang"
+#include "includes/core.slang"
 
 [[vk::push_constant]]
 PushConstants Push;
@@ -54,6 +54,8 @@ struct PushConstants
     if (TraceRay(ray, hit))
     {
         bool visible = backfaceGI || hit.frontFace;
+        // Surface surface = Surface::Get(Push.indices, Push.vertices, hit.primitiveID, hit.bary);
+        // bool smooth = UseSmoothPosition();
         result = EncodeVisibilityBuffer(hit.bary, hit.primitiveID, visible, false);
     }
     else

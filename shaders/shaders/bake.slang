@@ -1,4 +1,4 @@
-#include "includes/bake_core.slang"
+#include "includes/core.slang"
 #include "includes/sobol_burley.slang"
 
 [[vk::push_constant]]
@@ -8,9 +8,6 @@ PushConstants Push;
 
 struct PushConstants
 {
-    Vertex *vertices;
-    uint *indices;
-
     Light *lights;
     uint lightCount;
     uint maxSamples;
@@ -107,7 +104,7 @@ void ShadeLight(inout Spectrum spectrum, Light light, Surface surface, float2 xi
     float2 bary = visibility.xy;
     bool useSmoothP = (encoded & (1 << 1)) != 0;
 
-    Surface surface = Surface::Get(Push.indices, Push.vertices, primitiveID, bary);
+    Surface surface = Surface::Get(primitiveID, bary);
 
     uint sampleIndex = Push.sampleIndex;
     uint sampleCount = Push.maxSamples;
@@ -163,7 +160,7 @@ void ShadeLight(inout Spectrum spectrum, Light light, Surface surface, float2 xi
         Hit bounceHit;
         if (TraceRay(bounceRay, bounceHit))
         {
-            Surface surfaceBounce = Surface::Get(Push.indices, Push.vertices, bounceHit.primitiveID, bounceHit.bary);
+            Surface surfaceBounce = Surface::Get(bounceHit.primitiveID, bounceHit.bary);
 
             if (!bounceHit.frontFace)
             {

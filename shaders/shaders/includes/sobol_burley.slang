@@ -5,6 +5,7 @@
 // Adapted code from Blender Foundation
 
 #pragma once
+
 #include "util.slang"
 
 /* clang-format off */

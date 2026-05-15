@@ -1,3 +1,5 @@
+#pragma once
+
 enum LightType : uint32_t
 {
     Directional = 0,

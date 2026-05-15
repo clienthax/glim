@@ -252,7 +252,14 @@ fn render_visibility_buffer_camera(app: &mut Stilb, width: u32, height: u32) -> 
             | vk::ImageUsageFlags::SAMPLED,
     );
 
-    update_init_from_camera_shader(vk, shader, app.tlas.acceleration_structure(), &visibility);
+    update_init_from_camera_shader(
+        vk,
+        shader,
+        app.tlas.acceleration_structure(),
+        &visibility,
+        app.gpu_mesh.index_buffer.buffer,
+        app.gpu_mesh.vertex_buffer.buffer,
+    );
     visibility
 }
 
@@ -417,8 +424,6 @@ fn initialize_bake_push_constants(
     bounce_count: u32,
 ) {
     app.push = BakePushConstants {
-        vertices: app.gpu_mesh.vertex_buffer.address,
-        indices: app.gpu_mesh.index_buffer.address,
         lights: app.gpu_lights.address,
         lights_count: app.cpu_lights.len() as u32,
         sample_index: 0,
@@ -431,8 +436,6 @@ fn initialize_bake_push_constants(
 
 fn initialize_bake_sh_push_constants(app: &mut Stilb, max_samples: u32, bounce_count: u32) {
     app.push_probes = BakeSHPushConstants {
-        vertices: app.gpu_mesh.vertex_buffer.address,
-        indices: app.gpu_mesh.index_buffer.address,
         lights: app.gpu_lights.address,
         lights_count: app.cpu_lights.len() as u32,
         sample_index: 0,
@@ -473,6 +476,8 @@ fn bake_lightmaps(app: &mut Stilb) {
             &emissions,
             diffuse.view(),
             app.sampler_linear_clamp,
+            app.gpu_mesh.index_buffer.buffer,
+            app.gpu_mesh.vertex_buffer.buffer,
         );
 
         let mut previous_time = std::time::Instant::now();
@@ -540,6 +545,8 @@ fn bake_lightmaps(app: &mut Stilb) {
                         &emissions,
                         diffuse.view(),
                         app.sampler_linear_clamp,
+                        app.gpu_mesh.index_buffer.buffer,
+                        app.gpu_mesh.vertex_buffer.buffer,
                     );
 
                     continue;
@@ -590,6 +597,8 @@ fn bake_lightmaps(app: &mut Stilb) {
                 &emissions,
                 diffuse.view(),
                 app.sampler_linear_clamp,
+                app.gpu_mesh.index_buffer.buffer,
+                app.gpu_mesh.vertex_buffer.buffer,
             );
 
             loop {
@@ -652,10 +661,12 @@ fn bake_lightmaps(app: &mut Stilb) {
             &albedos,
             &emissions,
             app.sampler_linear_clamp,
+            app.gpu_mesh.index_buffer.buffer,
+            app.gpu_mesh.vertex_buffer.buffer,
         );
 
         // todo probe config
-        let probes_samples = app.groups[0].settings.max_samples;
+        let probes_samples = app.groups[0].settings.max_samples * 8;
         let probe_bounces = app.groups[0].settings.bounce_count;
         initialize_bake_sh_push_constants(app, probes_samples, probe_bounces);
 
@@ -1292,7 +1303,11 @@ impl Stilb {
         fwd.transform_space(config.coordinate_system);
         camera.set_forward(fwd);
 
-        let init_from_camera_shader = load_init_from_camera_shader(&vk);
+        let init_from_camera_shader = if config.is_preview {
+            load_init_from_camera_shader(&vk)
+        } else {
+            ComputeShader::null()
+        };
 
         let gpu_lights = Buffer::null();
 
@@ -1315,8 +1330,6 @@ impl Stilb {
             unsafe { vk.device.create_sampler(&sampler_info, None).unwrap() };
 
         let push = BakePushConstants {
-            vertices: 0,
-            indices: 0,
             lights: 0,
             lights_count: 0,
             sample_index: 0,
@@ -1327,8 +1340,6 @@ impl Stilb {
         };
 
         let push_probes = BakeSHPushConstants {
-            vertices: 0,
-            indices: 0,
             lights: 0,
             lights_count: 0,
             sample_index: 0,

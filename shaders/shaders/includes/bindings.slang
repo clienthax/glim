@@ -1,3 +1,5 @@
+#pragma once
+
 #include "lights.slang"
 #include "mesh.slang"
 #include "sh.slang"
@@ -12,7 +14,7 @@ StructuredBuffer<float4> CWBVHNodes;
 StructuredBuffer<float4> CWBVHTriangles;
 #endif
 
-[[vk::image_format("rgba32f")]] [[vk::binding(2, 0)]]
+[[vk::binding(2, 0)]] [[vk::image_format("rgba32f")]]
 RWTexture2D<float4> VisibilityBuffer;
 
 [[vk::binding(3, 0)]]
@@ -21,7 +23,7 @@ Texture2D<float4> Albedo[];
 [[vk::binding(5, 0)]]
 Texture2D<float4> Emission[];
 
-[[vk::image_format("rgba32f")]] [[vk::binding(4, 0)]]
+[[vk::binding(4, 0)]] [[vk::image_format("rgba32f")]]
 RWTexture2D<float4> LightmapDiffuse;
 
 [[vk::binding(6, 0)]]
@@ -29,6 +31,12 @@ SamplerState SamplerLinearClamp;
 
 [[vk::binding(7, 0)]]
 RWStructuredBuffer<SHProbe> SHProbes;
+
+[[vk::binding(8, 0)]]
+RWStructuredBuffer<uint> Indices;
+
+[[vk::binding(9, 0)]]
+RWStructuredBuffer<Vertex> Vertices;
 
 // maybe NonUniformResourceIndex()?
 float4 SampleAlbedo(float2 uv, uint lightmapGroup)

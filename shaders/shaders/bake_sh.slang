@@ -1,6 +1,6 @@
 #define LIGHTPROBE_SH
 
-#include "includes/bake_core.slang"
+#include "includes/core.slang"
 #include "includes/sobol_burley.slang"
 
 [[vk::push_constant]]
@@ -8,9 +8,6 @@ PushConstants Push;
 
 struct PushConstants
 {
-    Vertex *vertices;
-    uint *indices;
-
     Light *lights;
     uint lightCount;
     uint maxSamples;
@@ -181,7 +178,7 @@ void ShadeLightDirect(inout Spectrum spectrum, Light light, float3 position, flo
         Hit bounceHit;
         if (TraceRay(bounceRay, bounceHit))
         {
-            Surface surfaceBounce = Surface::Get(Push.indices, Push.vertices, bounceHit.primitiveID, bounceHit.bary);
+            Surface surfaceBounce = Surface::Get(bounceHit.primitiveID, bounceHit.bary);
 
             if (!bounceHit.frontFace)
             {

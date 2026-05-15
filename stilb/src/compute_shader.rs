@@ -143,6 +143,24 @@ pub fn load_init_from_camera_shader(vk: &VulkanContext) -> ComputeShader {
         ..Default::default()
     });
 
+    // Indices
+    bindings.push(vk::DescriptorSetLayoutBinding {
+        binding: 8,
+        descriptor_type: vk::DescriptorType::STORAGE_BUFFER,
+        descriptor_count: 1,
+        stage_flags: vk::ShaderStageFlags::COMPUTE,
+        ..Default::default()
+    });
+
+    // Vertices
+    bindings.push(vk::DescriptorSetLayoutBinding {
+        binding: 9,
+        descriptor_type: vk::DescriptorType::STORAGE_BUFFER,
+        descriptor_count: 1,
+        stage_flags: vk::ShaderStageFlags::COMPUTE,
+        ..Default::default()
+    });
+
     let specialization_info = vk::SpecializationInfo::default();
 
     let push_constant_ranges = [vk::PushConstantRange {
@@ -165,6 +183,8 @@ pub fn update_init_from_camera_shader(
     shader: &ComputeShader,
     tlas: vk::AccelerationStructureKHR,
     visibility: &Texture2D,
+    indices: vk::Buffer,
+    vertices: vk::Buffer,
 ) {
     let mut descriptor_writes = Vec::new();
 
@@ -193,6 +213,36 @@ pub fn update_init_from_camera_shader(
         ..Default::default()
     };
     write = write.image_info(&info);
+    descriptor_writes.push(write);
+
+    // Indices
+    let info = [vk::DescriptorBufferInfo {
+        buffer: indices,
+        offset: 0,
+        range: vk::WHOLE_SIZE,
+    }];
+    let mut write = vk::WriteDescriptorSet {
+        dst_set: shader.descriptor_set,
+        dst_binding: 8,
+        descriptor_type: vk::DescriptorType::STORAGE_BUFFER,
+        ..Default::default()
+    };
+    write = write.buffer_info(&info);
+    descriptor_writes.push(write);
+
+    // Vertices
+    let info = [vk::DescriptorBufferInfo {
+        buffer: vertices,
+        offset: 0,
+        range: vk::WHOLE_SIZE,
+    }];
+    let mut write = vk::WriteDescriptorSet {
+        dst_set: shader.descriptor_set,
+        dst_binding: 9,
+        descriptor_type: vk::DescriptorType::STORAGE_BUFFER,
+        ..Default::default()
+    };
+    write = write.buffer_info(&info);
     descriptor_writes.push(write);
 
     unsafe { vk.device.update_descriptor_sets(&descriptor_writes, &[]) };
@@ -240,9 +290,6 @@ pub fn update_init_from_camera_shader(
 
 #[repr(C)]
 pub struct BakePushConstants {
-    pub vertices: vk::DeviceAddress,
-    pub indices: vk::DeviceAddress,
-
     pub lights: vk::DeviceAddress,
     pub lights_count: u32,
     pub max_samples: u32,
@@ -255,9 +302,6 @@ pub struct BakePushConstants {
 
 #[repr(C)]
 pub struct BakeSHPushConstants {
-    pub vertices: vk::DeviceAddress,
-    pub indices: vk::DeviceAddress,
-
     pub lights: vk::DeviceAddress,
     pub lights_count: u32,
     pub max_samples: u32,
@@ -324,6 +368,24 @@ pub fn load_bake_lights_shader(
     bindings.push(vk::DescriptorSetLayoutBinding {
         binding: 6,
         descriptor_type: vk::DescriptorType::SAMPLER,
+        descriptor_count: 1,
+        stage_flags: vk::ShaderStageFlags::COMPUTE,
+        ..Default::default()
+    });
+
+    // Indices
+    bindings.push(vk::DescriptorSetLayoutBinding {
+        binding: 8,
+        descriptor_type: vk::DescriptorType::STORAGE_BUFFER,
+        descriptor_count: 1,
+        stage_flags: vk::ShaderStageFlags::COMPUTE,
+        ..Default::default()
+    });
+
+    // Vertices
+    bindings.push(vk::DescriptorSetLayoutBinding {
+        binding: 9,
+        descriptor_type: vk::DescriptorType::STORAGE_BUFFER,
         descriptor_count: 1,
         stage_flags: vk::ShaderStageFlags::COMPUTE,
         ..Default::default()
@@ -407,6 +469,24 @@ pub fn load_bake_sh_shader(vk: &VulkanContext, lightmap_groups: u32) -> ComputeS
         ..Default::default()
     });
 
+    // Indices
+    bindings.push(vk::DescriptorSetLayoutBinding {
+        binding: 8,
+        descriptor_type: vk::DescriptorType::STORAGE_BUFFER,
+        descriptor_count: 1,
+        stage_flags: vk::ShaderStageFlags::COMPUTE,
+        ..Default::default()
+    });
+
+    // Vertices
+    bindings.push(vk::DescriptorSetLayoutBinding {
+        binding: 9,
+        descriptor_type: vk::DescriptorType::STORAGE_BUFFER,
+        descriptor_count: 1,
+        stage_flags: vk::ShaderStageFlags::COMPUTE,
+        ..Default::default()
+    });
+
     let push_constant_ranges = [vk::PushConstantRange {
         stage_flags: vk::ShaderStageFlags::COMPUTE,
         offset: 0,
@@ -432,6 +512,8 @@ pub fn update_bake_sh_shader(
     albedos: &[vk::ImageView],
     emissions: &[vk::ImageView],
     sampler: vk::Sampler,
+    indices: vk::Buffer,
+    vertices: vk::Buffer,
 ) {
     let mut descriptor_writes = Vec::new();
 
@@ -514,6 +596,36 @@ pub fn update_bake_sh_shader(
     write = write.buffer_info(&info);
     descriptor_writes.push(write);
 
+    // Indices
+    let info = [vk::DescriptorBufferInfo {
+        buffer: indices,
+        offset: 0,
+        range: vk::WHOLE_SIZE,
+    }];
+    let mut write = vk::WriteDescriptorSet {
+        dst_set: shader.descriptor_set,
+        dst_binding: 8,
+        descriptor_type: vk::DescriptorType::STORAGE_BUFFER,
+        ..Default::default()
+    };
+    write = write.buffer_info(&info);
+    descriptor_writes.push(write);
+
+    // Vertices
+    let info = [vk::DescriptorBufferInfo {
+        buffer: vertices,
+        offset: 0,
+        range: vk::WHOLE_SIZE,
+    }];
+    let mut write = vk::WriteDescriptorSet {
+        dst_set: shader.descriptor_set,
+        dst_binding: 9,
+        descriptor_type: vk::DescriptorType::STORAGE_BUFFER,
+        ..Default::default()
+    };
+    write = write.buffer_info(&info);
+    descriptor_writes.push(write);
+
     unsafe { vk.device.update_descriptor_sets(&descriptor_writes, &[]) };
 }
 
@@ -526,6 +638,8 @@ pub fn update_bake_lights_shader(
     emissions: &[vk::ImageView],
     target_diffuse: vk::ImageView,
     sampler: vk::Sampler,
+    indices: vk::Buffer,
+    vertices: vk::Buffer,
 ) {
     let mut descriptor_writes = Vec::new();
 
@@ -621,6 +735,36 @@ pub fn update_bake_lights_shader(
         ..Default::default()
     };
     write = write.image_info(&info);
+    descriptor_writes.push(write);
+
+    // Indices
+    let info = [vk::DescriptorBufferInfo {
+        buffer: indices,
+        offset: 0,
+        range: vk::WHOLE_SIZE,
+    }];
+    let mut write = vk::WriteDescriptorSet {
+        dst_set: shader.descriptor_set,
+        dst_binding: 8,
+        descriptor_type: vk::DescriptorType::STORAGE_BUFFER,
+        ..Default::default()
+    };
+    write = write.buffer_info(&info);
+    descriptor_writes.push(write);
+
+    // Vertices
+    let info = [vk::DescriptorBufferInfo {
+        buffer: vertices,
+        offset: 0,
+        range: vk::WHOLE_SIZE,
+    }];
+    let mut write = vk::WriteDescriptorSet {
+        dst_set: shader.descriptor_set,
+        dst_binding: 9,
+        descriptor_type: vk::DescriptorType::STORAGE_BUFFER,
+        ..Default::default()
+    };
+    write = write.buffer_info(&info);
     descriptor_writes.push(write);
 
     unsafe { vk.device.update_descriptor_sets(&descriptor_writes, &[]) };
