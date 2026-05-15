@@ -9,8 +9,8 @@ enum LightType : uint32_t
 
 struct Light
 {
-    LightType type;
     float3 position;
+    LightType type;
 
     float3 direction;
     float range;

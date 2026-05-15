@@ -33,10 +33,13 @@ SamplerState SamplerLinearClamp;
 RWStructuredBuffer<SHProbe> SHProbes;
 
 [[vk::binding(8, 0)]]
-RWStructuredBuffer<uint> Indices;
+StructuredBuffer<uint> Indices;
 
 [[vk::binding(9, 0)]]
-RWStructuredBuffer<Vertex> Vertices;
+StructuredBuffer<Vertex> Vertices;
+
+[[vk::binding(10, 0)]]
+StructuredBuffer<Light> Lights;
 
 // maybe NonUniformResourceIndex()?
 float4 SampleAlbedo(float2 uv, uint lightmapGroup)

@@ -424,7 +424,6 @@ fn initialize_bake_push_constants(
     bounce_count: u32,
 ) {
     app.push = BakePushConstants {
-        lights: app.gpu_lights.address,
         lights_count: app.cpu_lights.len() as u32,
         sample_index: 0,
         width: width,
@@ -436,7 +435,6 @@ fn initialize_bake_push_constants(
 
 fn initialize_bake_sh_push_constants(app: &mut Stilb, max_samples: u32, bounce_count: u32) {
     app.push_probes = BakeSHPushConstants {
-        lights: app.gpu_lights.address,
         lights_count: app.cpu_lights.len() as u32,
         sample_index: 0,
         max_samples,
@@ -478,6 +476,7 @@ fn bake_lightmaps(app: &mut Stilb) {
             app.sampler_linear_clamp,
             app.gpu_mesh.index_buffer.buffer,
             app.gpu_mesh.vertex_buffer.buffer,
+            app.gpu_lights.buffer,
         );
 
         let mut previous_time = std::time::Instant::now();
@@ -547,6 +546,7 @@ fn bake_lightmaps(app: &mut Stilb) {
                         app.sampler_linear_clamp,
                         app.gpu_mesh.index_buffer.buffer,
                         app.gpu_mesh.vertex_buffer.buffer,
+                        app.gpu_lights.buffer,
                     );
 
                     continue;
@@ -599,6 +599,7 @@ fn bake_lightmaps(app: &mut Stilb) {
                 app.sampler_linear_clamp,
                 app.gpu_mesh.index_buffer.buffer,
                 app.gpu_mesh.vertex_buffer.buffer,
+                app.gpu_lights.buffer,
             );
 
             loop {
@@ -663,6 +664,7 @@ fn bake_lightmaps(app: &mut Stilb) {
             app.sampler_linear_clamp,
             app.gpu_mesh.index_buffer.buffer,
             app.gpu_mesh.vertex_buffer.buffer,
+            app.gpu_lights.buffer,
         );
 
         // todo probe config
@@ -1330,7 +1332,6 @@ impl Stilb {
             unsafe { vk.device.create_sampler(&sampler_info, None).unwrap() };
 
         let push = BakePushConstants {
-            lights: 0,
             lights_count: 0,
             sample_index: 0,
             width: 0,
@@ -1340,7 +1341,6 @@ impl Stilb {
         };
 
         let push_probes = BakeSHPushConstants {
-            lights: 0,
             lights_count: 0,
             sample_index: 0,
             max_samples: 0,

@@ -11,8 +11,8 @@ pub enum LightType {
 
 #[repr(C)]
 pub struct Light {
-    pub ty: LightType,
     pub position: Vector3,
+    pub ty: LightType,
 
     pub direction: Vector3,
     pub range: f32,

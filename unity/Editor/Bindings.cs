@@ -90,8 +90,8 @@ namespace stilb
         [StructLayout(LayoutKind.Sequential)]
         public struct Light
         {
-            public LightType ty;
             public Vector3 position;
+            public LightType ty;
 
             public Vector3 direction;
             public float range;

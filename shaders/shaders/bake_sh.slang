@@ -8,7 +8,6 @@ PushConstants Push;
 
 struct PushConstants
 {
-    Light *lights;
     uint lightCount;
     uint maxSamples;
 
@@ -160,7 +159,7 @@ void ShadeLightDirect(inout Spectrum spectrum, Light light, float3 position, flo
 
     for (uint lightIndex = 0; lightIndex < lightCount; lightIndex++)
     {
-        ShadeLightDirect(spectrum, Push.lights[lightIndex], probePosition, xiLight, throughput);
+        ShadeLightDirect(spectrum, Lights[lightIndex], probePosition, xiLight, throughput);
     }
 
     float2 xiBounce0 = SobolBurleySample2D(sampleIndex, dimension++, pixelSeed, shuffledIndexMask);
@@ -203,7 +202,7 @@ void ShadeLightDirect(inout Spectrum spectrum, Light light, float3 position, flo
 
             for (uint lightIndex = 0; lightIndex < lightCount; lightIndex++)
             {
-                ShadeLightIndirect(spectrum, Push.lights[lightIndex], surfaceBounce, xiLight, throughput, wi);
+                ShadeLightIndirect(spectrum, Lights[lightIndex], surfaceBounce, xiLight, throughput, wi);
             }
 
             bounceRay.P = RayOffset(surfaceBounce.P, surfaceBounce.Ng);

@@ -251,15 +251,15 @@ impl VulkanContext {
 
         let mut pool_sizes = Vec::new();
         let storage_image_pool = vk::DescriptorPoolSize {
-            descriptor_count: 3,
+            descriptor_count: 5,
             ty: vk::DescriptorType::STORAGE_IMAGE,
         };
         let sampled_image_pool = vk::DescriptorPoolSize {
-            descriptor_count: 2,
+            descriptor_count: 5,
             ty: vk::DescriptorType::SAMPLED_IMAGE,
         };
         let storage_buffer_pool = vk::DescriptorPoolSize {
-            descriptor_count: 5,
+            descriptor_count: 10,
             ty: vk::DescriptorType::STORAGE_BUFFER,
         };
         let as_structure_pool = vk::DescriptorPoolSize {
