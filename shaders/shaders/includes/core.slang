@@ -261,23 +261,11 @@ void SpectrumAdd(inout Spectrum spectrum, float3 color, float3 wi)
     const float L0 = PI * (0.5 * sqrt(1.0 / PI)) * PI;
     const float L1 = PI * (0.5 * sqrt(3.0 / PI)) * 2.0 * PI / 3.0;
 
-    spectrum.l0 += (color * L0 * (0.5 * sqrt(1.0 / PI))) / PI;
-    spectrum.l1x += (color * L1 * wi.x * (0.5 * sqrt(3.0 / PI))) / PI;
-    spectrum.l1y += (color * L1 * wi.y * (0.5 * sqrt(3.0 / PI))) / PI;
-    spectrum.l1z += (color * L1 * wi.z * (0.5 * sqrt(3.0 / PI))) / PI;
+    spectrum.l0 += (color * L0 * (0.5 * sqrt(1.0 / PI))) / PI;         // ~0.25
+    spectrum.l1x += (color * L1 * wi.x * (0.5 * sqrt(3.0 / PI))) / PI; // ~0.5
+    spectrum.l1y += (color * L1 * wi.y * (0.5 * sqrt(3.0 / PI))) / PI; // ~0.5
+    spectrum.l1z += (color * L1 * wi.z * (0.5 * sqrt(3.0 / PI))) / PI; // ~0.5
 
-#else
-    spectrum.color += color;
-#endif
-}
-
-void SpectrumAddIndirect(inout Spectrum spectrum, float3 color, float3 wi)
-{
-#ifdef LIGHTPROBE_SH
-    spectrum.l0 += color;
-    spectrum.l1x += color * wi.x * 2.0;
-    spectrum.l1y += color * wi.y * 2.0;
-    spectrum.l1z += color * wi.z * 2.0;
 #else
     spectrum.color += color;
 #endif
