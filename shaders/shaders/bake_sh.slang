@@ -145,9 +145,9 @@ void ShadeLightDirect(inout Spectrum spectrum, Light light, float3 position, flo
     uint lightCount = Push.lightCount;
     // todo set constant
     uint sobolIndexMask = reversebits(NextPowerOfTwo(sampleCount - 1) - 1);
-    sobolIndexMask = ~0u;
+    // sobolIndexMask = ~0u;
 
-    SamplingPattern pattern = SamplingPattern::BlueNoiseFirst;
+    SamplingPattern pattern = SamplingPattern::SobolBurley;
     uint pixelSeed = RNGPixelInit(uint2(probeIndex.x, 0), pattern);
     uint3 indexing = BlueNoiseIndexing(pixelSeed, sampleIndex, sobolIndexMask, sampleCount, pattern);
     uint dimension = 0;

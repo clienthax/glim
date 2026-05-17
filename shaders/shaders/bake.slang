@@ -111,9 +111,15 @@ void ShadeLight(inout Spectrum spectrum, Light light, Surface surface, float2 xi
     uint lightCount = Push.lightCount;
     // todo set constant
     uint sobolIndexMask = reversebits(NextPowerOfTwo(sampleCount - 1) - 1);
-    sobolIndexMask = ~0u;
+    // sobolIndexMask = ~0u;
 
-    SamplingPattern pattern = SamplingPattern::BlueNoiseFirst;
+    // SobolBurley  0.5600289s
+    // BlueNoiseFirst 0.8252296s
+    SamplingPattern pattern = SamplingPattern::SobolBurley;
+    if (USE_CAMERA > 0)
+    {
+        pattern = SamplingPattern::BlueNoiseFirst;
+    }
     uint pixelSeed = RNGPixelInit(coords, pattern);
     uint3 indexing = BlueNoiseIndexing(pixelSeed, sampleIndex, sobolIndexMask, sampleCount, pattern);
     uint dimension = 0;
