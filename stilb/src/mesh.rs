@@ -12,21 +12,41 @@ pub struct FfiMesh {
     pub vertices_length: u32,
     pub indices_length: u32,
     pub lightmap_group: u32,
+    pub backface_gi: bool,
 }
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy)]
 pub struct Vertex {
     pub position: Vector3,
-    pub uv_x: f32,
-    pub normal: Vector3,
-    pub uv_y: f32,
+    pub flags: u32,
+    pub normal: Vector2,
+    pub uv: Vector2,
 }
 
 #[derive(Debug)]
 pub struct Mesh {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u32>,
+}
+
+fn sign_not_zero(v: f32) -> f32 {
+    if v >= 0.0 { 1.0 } else { -1.0 }
+}
+
+pub fn encode_normal_octahedron(n: Vector3) -> Vector2 {
+    let inv_l1 = 1.0 / (n.x.abs() + n.y.abs() + n.z.abs());
+
+    let mut p = Vector2::new(n.x * inv_l1, n.y * inv_l1);
+
+    if n.z < 0.0 {
+        let x = (1.0 - p.y.abs()) * sign_not_zero(p.x);
+        let y = (1.0 - p.x.abs()) * sign_not_zero(p.y);
+
+        p = Vector2::new(x, y);
+    }
+
+    p
 }
 
 impl Mesh {
@@ -38,23 +58,28 @@ impl Mesh {
 
         let offset = self.vertices.len() as u32;
 
-        let group = mesh.lightmap_group as f32;
+        let lightmap_group = mesh.lightmap_group;
+        let backface_gi = mesh.backface_gi;
 
         self.vertices.reserve(verts.len());
 
         for i in 0..verts.len() {
-            let mut uv = uvs[i];
-            uv.x = uv.x.clamp(0.0, 1.0) + group;
-            uv.y = (1.0 - uv.y.clamp(0.0, 1.0)) + group;
+            let mut normal = normals[i];
+            normal.transform_space(system);
+
+            let mut flags: u32 = 0;
+            flags |= lightmap_group & 0xFFFF;
+            if backface_gi {
+                flags |= 1 << 16;
+            }
 
             let mut vertex = Vertex {
                 position: verts[i],
-                uv_x: uv.x,
-                normal: normals[i],
-                uv_y: uv.y,
+                normal: encode_normal_octahedron(normal),
+                uv: uvs[i],
+                flags,
             };
 
-            vertex.normal.transform_space(system);
             vertex.position.transform_space(system);
 
             self.vertices.push(vertex);

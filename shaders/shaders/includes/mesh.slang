@@ -2,12 +2,29 @@
 
 #include "bindings.slang"
 
+float2 OctahedronWrap(float2 v)
+{
+    return (1.0 - abs(v.yx)) * (v.xy >= 0.0 ? 1.0 : -1.0);
+}
+
+float3 DecodeNormalOctahedron(float2 e)
+{
+    float3 v = float3(e.xy, 1.0 - abs(e.x) - abs(e.y));
+
+    if (v.z < 0.0)
+    {
+        v.xy = OctahedronWrap(v.xy);
+    }
+
+    return normalize(v);
+}
+
 struct Vertex
 {
     float3 position;
-    float uvX;
-    float3 normal;
-    float uvY;
+    uint flags;
+    float2 normal;
+    float2 uv;
 
     float3 GetPosition()
     {
@@ -16,17 +33,27 @@ struct Vertex
 
     float3 GetNormal()
     {
-        return this.normal;
+        return DecodeNormalOctahedron(this.normal);
     }
 
     float2 GetUV()
     {
-        return frac(float2(this.uvX, this.uvY));
+        return this.uv;
     }
 
     uint GetLightmapGroup()
     {
-        return (uint)this.uvX;
+        return this.flags & 0xFFFFu;
+    }
+
+    uint GetFlags()
+    {
+        return (this.flags >> 16u) & 0xFFFFu;
+    }
+
+    bool BackfaceGI()
+    {
+        return (GetFlags() & (0x1u << 0u)) != 0u;
     }
 };
 

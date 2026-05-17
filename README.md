@@ -30,6 +30,7 @@
 - [ ] Log callback
 - [ ] Double sided global illumination
 - [ ] Clamp max samples and bounces
+- [ ] Move test to another crate so gltf and image are not dependencies
 
 
 # Complete
