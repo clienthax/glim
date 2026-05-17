@@ -131,6 +131,11 @@ namespace stilb
                 uvOffset[i].w *= halfTexelSize;
             }
 
+            var _MainTex = Shader.PropertyToID("_MainTex");
+            var _Color = Shader.PropertyToID("_Color");
+            var _Cutoff = Shader.PropertyToID("_Cutoff");
+            var unity_LightmapST = Shader.PropertyToID("unity_LightmapST");
+
             for (int offsetIndex = 0; offsetIndex < uvOffset.Length; offsetIndex++)
             {
                 for (int rendererIndex = 0; rendererIndex < renderers.Count; rendererIndex++)
@@ -150,7 +155,7 @@ namespace stilb
                     so.z += uvOffset[offsetIndex].z;
                     so.w += uvOffset[offsetIndex].w;
 
-                    cmd.SetGlobalVector("unity_LightmapST", so);
+                    cmd.SetGlobalVector(unity_LightmapST, so);
 
                     for (int submeshIndex = 0; submeshIndex < mesh.subMeshCount; submeshIndex++)
                     {
@@ -164,17 +169,16 @@ namespace stilb
                                 continue;
                             }
 
-                            if (!mat.HasFloat("_Cutoff"))
+                            if (!mat.HasFloat(_Cutoff))
                             {
                                 continue;
                             }
 
-                            // todo PropertyID
-                            _metaAlphaMat.SetTexture("_MainTex", mat.mainTexture);
-                            _metaAlphaMat.SetColor("_Color", mat.color);
-                            _metaAlphaMat.SetFloat("_Cutoff", mat.GetFloat("_Cutoff"));
-                            _metaAlphaMat.SetTextureOffset("_MainTex", mat.mainTextureOffset);
-                            _metaAlphaMat.SetTextureScale("_MainTex", mat.mainTextureScale);
+                            _metaAlphaMat.SetTexture(_MainTex, mat.mainTexture);
+                            _metaAlphaMat.SetColor(_Color, mat.color);
+                            _metaAlphaMat.SetFloat(_Cutoff, mat.GetFloat(_Cutoff));
+                            _metaAlphaMat.SetTextureOffset(_MainTex, mat.mainTextureOffset);
+                            _metaAlphaMat.SetTextureScale(_MainTex, mat.mainTextureScale);
                             cmd.DrawRenderer(renderer, _metaAlphaMat, submeshIndex, 0);
                         }
                         else

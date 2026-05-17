@@ -60,8 +60,7 @@ namespace stilb
             }
         }
 
-        // todo remove this
-        [MenuItem("Test/ZeroL2Coefficients")]
+        // [MenuItem("Test/ZeroL2Coefficients")]
         static void ZeroL2Coefficients()
         {
             var lightingDataAsset = Lightmapping.lightingDataAsset;
@@ -120,8 +119,6 @@ namespace stilb
             var scenePath = targetScene.path;
 
             Scene tempScene = EditorSceneManager.OpenScene(TempScenePath, OpenSceneMode.Additive);
-
-            // todo copy light probes
 
             foreach (GameObject obj in targetScene.GetRootGameObjects())
             {

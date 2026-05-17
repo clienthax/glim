@@ -181,9 +181,6 @@ uint RNGPixelInit(uint2 coords, SamplingPattern pattern)
     //
     // Based on:
     // https://psychopath.io/post/2022_07_24_owen_scrambling_based_dithered_blue_noise_sampling.
-    //
-    // TODO(lukas): Use a precomputed Hilbert curve to avoid directionality bias in the noise
-    // distribution. We can just precompute a small-ish tile and repeat it in morton code order.
     return nested_uniform_scramble_base4(MortonEncode(coords.x, coords.y), seed);
 }
 
