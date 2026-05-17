@@ -30,10 +30,9 @@
 - [ ] Return codes for bake success, fail, cancel
 - [ ] Log callback
 - [ ] Double sided global illumination
-- [ ] Clamp max samples and bounces
-
 
 # Complete
+- [x] Clamp max samples and bounces
 - [x] Move test to another crate so gltf and image are not dependencies
 - [x] Configurable nearest and linear sampler
 - [x] Configurable probe samples and bounces

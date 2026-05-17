@@ -162,8 +162,17 @@ pub fn as_bytes<T>(v: &T) -> &[u8] {
     unsafe { std::slice::from_raw_parts(v as *const T as *const u8, std::mem::size_of::<T>()) }
 }
 
-// pub fn blit_with_shader(vk: &VulkanContext, cmd: vk::CommandBuffer, image: vk::ImageView) {
-// }
+fn clamp_samples(samples: u32) -> u32 {
+    const MAX_SAMPLES: u32 = 65536;
+    samples.clamp(1, MAX_SAMPLES)
+}
+
+fn clamp_bounces(bounces: u32) -> u32 {
+    const MAX_DIMENSIONS: u32 = 256;
+    // 2 dimensions for direct + 2 per bounce
+    const MAX_BOUNCES: u32 = (MAX_DIMENSIONS - 2) / 2;
+    bounces.clamp(0, MAX_BOUNCES)
+}
 
 fn render_visibility_buffer_bake(
     app: &mut Stilb,
@@ -397,6 +406,7 @@ fn clear_texture(
     }
 }
 
+// main bake function
 fn start_bake(app: &mut Stilb) {
     assert!(app.cpu_mesh.vertices.len() > 0);
 
@@ -413,6 +423,18 @@ fn start_bake(app: &mut Stilb) {
 
         app.probes_buffer = Buffer::new(&app.vk, &app.probes, flags);
     }
+
+    // clamp samples and bounces to supported limits
+    for group in &mut app.groups {
+        group.settings.max_samples = clamp_samples(group.settings.max_samples);
+        group.settings.bounce_count = clamp_bounces(group.settings.bounce_count);
+    }
+    app.config.probe_samples = clamp_samples(app.config.probe_samples);
+    app.config.probe_bounces = clamp_bounces(app.config.probe_bounces);
+    app.config.preview_settings.max_samples =
+        clamp_samples(app.config.preview_settings.max_samples);
+    app.config.preview_settings.bounce_count =
+        clamp_bounces(app.config.preview_settings.bounce_count);
 
     // upload lights
     if app.cpu_lights.len() > 0 {
