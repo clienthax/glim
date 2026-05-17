@@ -18,11 +18,11 @@ LightmapParameters:
   systemTag: -1
   edgeStitching: 0
   blurRadius: 2
-  directLightQuality: 64
+  directLightQuality: 1
   antiAliasingSamples: 1
   pushoff: 0.0001
   bakedLightmapTag: -1
   limitLightmapCount: 0
   maxLightmapCount: 1
-  AOQuality: 256
-  AOAntiAliasingSamples: 4
+  AOQuality: 16
+  AOAntiAliasingSamples: 1

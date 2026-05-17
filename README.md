@@ -22,7 +22,7 @@
 - [ ] Stop closing and opening the scene twice
 - [ ] Proper sync for bake loop
 - [ ] Probe occlusion
-- [ ] Try to stop unity from slowing down the bake for no reason
+- [ ] Try to stop unity from slowing down the bake start for no reason
 
 ## Easy
 - [ ] Better panic handling

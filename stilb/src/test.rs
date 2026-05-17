@@ -103,7 +103,7 @@ mod tests {
         //     },
         // );
 
-        let (w, h, emission_pixels) = load_tga("..\\textures\\emission.tga").unwrap();
+        let (w, h, emission_pixels) = load_tga("..\\textures\\emission_cute.tga").unwrap();
         let albedo_pixels = vec![255; (w * h * 4) as usize];
         // let emission_pixels = vec![0.0; (w * h * 4) as usize];
 

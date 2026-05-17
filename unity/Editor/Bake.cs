@@ -6,6 +6,7 @@ using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEditorInternal;
 using UnityEngine;
+using UnityEngine.Rendering;
 
 namespace stilb
 {
@@ -129,33 +130,59 @@ namespace stilb
 
                 // apply light probes
                 var lightProbesRef = lda.FindProperty("m_LightProbes").objectReferenceValue;
-                using var probesSo = new SerializedObject(lightProbesRef);
-                LightingData.InspectorModeObject.SetValue(probesSo, InspectorMode.DebugInternal);
-                var bakedCoeff = probesSo.FindProperty("m_BakedCoefficients");
-                int bakedCoeffCount = bakedCoeff.arraySize;
-                Debug.Assert(bakedCoeffCount == _bakeProbesResults.Count);
-                for (int i = 0; i < bakedCoeffCount; i++)
+
+                // faster
+                SphericalHarmonicsL2 sh = new();
+                var obj = lightProbesRef as LightProbes;
+                Debug.Assert(obj != null);
+                if (obj != null)
                 {
-                    SerializedProperty prop = bakedCoeff.GetArrayElementAtIndex(i);
-                    Bindings.SHProbe probeData = _bakeProbesResults[i];
+                    SphericalHarmonicsL2[] bakedProbesArray = obj.bakedProbes;
+                    int bakedCoeffCount = bakedProbesArray.Length;
 
-                    float[] flatCoefficients = new float[27]
+                    for (int i = 0; i < bakedCoeffCount; i++)
                     {
-                        probeData.L0.x, probeData.L1_1.x, probeData.L10.x, probeData.L11.x, probeData.L2_2.x, probeData.L2_1.x, probeData.L20.x, probeData.L21.x, probeData.L22.x,
-                        probeData.L0.y, probeData.L1_1.y, probeData.L10.y, probeData.L11.y, probeData.L2_2.y, probeData.L2_1.y, probeData.L20.y, probeData.L21.y, probeData.L22.y,
-                        probeData.L0.z, probeData.L1_1.z, probeData.L10.z, probeData.L11.z, probeData.L2_2.z, probeData.L2_1.z, probeData.L20.z, probeData.L21.z, probeData.L22.z
-                    };
+                        Bindings.SHProbe probeData = _bakeProbesResults[i];
 
-                    prop.Next(true);
+                        sh[0, 0] = probeData.L0.x; sh[0, 1] = probeData.L1_1.x; sh[0, 2] = probeData.L10.x; sh[0, 3] = probeData.L11.x; sh[0, 4] = probeData.L2_2.x; sh[0, 5] = probeData.L2_1.x; sh[0, 6] = probeData.L20.x; sh[0, 7] = probeData.L21.x; sh[0, 8] = probeData.L22.x;
+                        sh[1, 0] = probeData.L0.y; sh[1, 1] = probeData.L1_1.y; sh[1, 2] = probeData.L10.y; sh[1, 3] = probeData.L11.y; sh[1, 4] = probeData.L2_2.y; sh[1, 5] = probeData.L2_1.y; sh[1, 6] = probeData.L20.y; sh[1, 7] = probeData.L21.y; sh[1, 8] = probeData.L22.y;
+                        sh[2, 0] = probeData.L0.z; sh[2, 1] = probeData.L1_1.z; sh[2, 2] = probeData.L10.z; sh[2, 3] = probeData.L11.z; sh[2, 4] = probeData.L2_2.z; sh[2, 5] = probeData.L2_1.z; sh[2, 6] = probeData.L20.z; sh[2, 7] = probeData.L21.z; sh[2, 8] = probeData.L22.z;
 
-                    for (int j = 0; j < flatCoefficients.Length; j++)
-                    {
-                        prop.floatValue = flatCoefficients[j];
-                        prop.Next(false);
+                        bakedProbesArray[i] = sh;
                     }
 
+                    obj.bakedProbes = bakedProbesArray;
+                    EditorUtility.SetDirty(obj);
                 }
-                probesSo.ApplyModifiedPropertiesWithoutUndo();
+
+                // slow
+                // using var probesSo = new SerializedObject(lightProbesRef);
+                // LightingData.InspectorModeObject.SetValue(probesSo, InspectorMode.DebugInternal);
+                // var bakedCoeff = probesSo.FindProperty("m_BakedCoefficients");
+                // int bakedCoeffCount = bakedCoeff.arraySize;
+                // for (int i = 0; i < bakedCoeffCount; i++)
+                // {
+                //     SerializedProperty prop = bakedCoeff.GetArrayElementAtIndex(i);
+
+                //     Bindings.SHProbe probeData = _bakeProbesResults[i];
+
+                //     float[] flatCoefficients = new float[27]
+                //     {
+                //         probeData.L0.x, probeData.L1_1.x, probeData.L10.x, probeData.L11.x, probeData.L2_2.x, probeData.L2_1.x, probeData.L20.x, probeData.L21.x, probeData.L22.x,
+                //         probeData.L0.y, probeData.L1_1.y, probeData.L10.y, probeData.L11.y, probeData.L2_2.y, probeData.L2_1.y, probeData.L20.y, probeData.L21.y, probeData.L22.y,
+                //         probeData.L0.z, probeData.L1_1.z, probeData.L10.z, probeData.L11.z, probeData.L2_2.z, probeData.L2_1.z, probeData.L20.z, probeData.L21.z, probeData.L22.z
+                //     };
+
+                //     prop.Next(true);
+
+                //     for (int j = 0; j < flatCoefficients.Length; j++)
+                //     {
+                //         prop.floatValue = flatCoefficients[j];
+                //         prop.Next(false);
+                //     }
+
+                // }
+                // probesSo.ApplyModifiedPropertiesWithoutUndo();
 
 
                 var storagePath = Path.Combine(sceneDirectory, $"{_context.scene.name} LightmapStorage.asset");
