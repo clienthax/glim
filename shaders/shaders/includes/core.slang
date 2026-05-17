@@ -214,11 +214,17 @@ void AccumulateSH(RWStructuredBuffer<SHProbe> buffer, uint probeIndex, Spectrum 
 {
     SHProbe probe = buffer[probeIndex];
 
-    probe.L0 += spectrum.l0;
+    probe.sh[0].xyz += spectrum.sh[0];
 
-    probe.L1x += spectrum.l1x;
-    probe.L1y += spectrum.l1y;
-    probe.L1z += spectrum.l1z;
+    probe.sh[1].xyz += spectrum.sh[1];
+    probe.sh[2].xyz += spectrum.sh[2];
+    probe.sh[3].xyz += spectrum.sh[3];
+
+    probe.sh[4].xyz += spectrum.sh[4];
+    probe.sh[5].xyz += spectrum.sh[5];
+    probe.sh[6].xyz += spectrum.sh[6];
+    probe.sh[7].xyz += spectrum.sh[7];
+    probe.sh[8].xyz += spectrum.sh[8];
 
     buffer[probeIndex] = probe;
 }
@@ -226,12 +232,8 @@ void AccumulateSH(RWStructuredBuffer<SHProbe> buffer, uint probeIndex, Spectrum 
 
 struct Spectrum
 {
-
 #ifdef LIGHTPROBE_SH
-    float3 l0;
-    float3 l1x;
-    float3 l1y;
-    float3 l1z;
+    float3 sh[9];
 #else
     float3 color;
 #endif
@@ -242,10 +244,7 @@ Spectrum SpectrumZero()
     Spectrum spectrum;
 
 #ifdef LIGHTPROBE_SH
-    spectrum.l0 = 0;
-    spectrum.l1x = 0;
-    spectrum.l1y = 0;
-    spectrum.l1z = 0;
+    spectrum.sh = {0};
 #else
     spectrum.color = 0;
 #endif
@@ -256,16 +255,20 @@ Spectrum SpectrumZero()
 void SpectrumAdd(inout Spectrum spectrum, float3 color, float3 wi)
 {
 #ifdef LIGHTPROBE_SH
-    const float PI = float.getPi();
+    // flip Z for Unity
+    wi.z = -wi.z;
 
-    const float L0 = PI * (0.5 * sqrt(1.0 / PI)) * PI;
-    const float L1 = PI * (0.5 * sqrt(3.0 / PI)) * 2.0 * PI / 3.0;
+    spectrum.sh[0] += color * Y0() * A_HAT_0 * L0_NORMALIZATION;
 
-    spectrum.l0 += (color * L0 * (0.5 * sqrt(1.0 / PI))) / PI;         // ~0.25
-    spectrum.l1x += (color * L1 * wi.x * (0.5 * sqrt(3.0 / PI))) / PI; // ~0.5
-    spectrum.l1y += (color * L1 * wi.y * (0.5 * sqrt(3.0 / PI))) / PI; // ~0.5
-    spectrum.l1z += (color * L1 * wi.z * (0.5 * sqrt(3.0 / PI))) / PI; // ~0.5
+    spectrum.sh[1] += color * Y1_1(wi) * A_HAT_1 * L1_NORMALIZATION;
+    spectrum.sh[2] += color * Y10(wi) * A_HAT_1 * L1_NORMALIZATION;
+    spectrum.sh[3] += color * Y11(wi) * A_HAT_1 * L1_NORMALIZATION;
 
+    spectrum.sh[4] += color * Y2_2(wi) * A_HAT_2 * L2_2_NORMALIZATION;
+    spectrum.sh[5] += color * Y2_1(wi) * A_HAT_2 * L2_2_NORMALIZATION;
+    spectrum.sh[6] += color * Y20(wi) * A_HAT_2 * L20_NORMALIZATION;
+    spectrum.sh[7] += color * Y21(wi) * A_HAT_2 * L2_2_NORMALIZATION;
+    spectrum.sh[8] += color * Y22(wi) * A_HAT_2 * L22_NORMALIZATION;
 #else
     spectrum.color += color;
 #endif

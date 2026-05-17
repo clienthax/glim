@@ -167,7 +167,7 @@ mod tests {
         //         direction: Vector3::new(0.5, -1.0, 0.5).normalize(),
         //         range: 0.0,
         //         color: Vector3::new(1.0, 1.0, 1.0),
-        //         shadow_radius_or_angle: 0.1,
+        //         shadow_radius_or_angle: 0.01,
         //     },
         // );
 

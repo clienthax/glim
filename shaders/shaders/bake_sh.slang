@@ -134,7 +134,7 @@ void ShadeLightDirect(inout Spectrum spectrum, Light light, float3 position, flo
     }
 
     SHProbe probe = SHProbes[probeIndex];
-    float3 probePosition = float3(probe.positionX, probe.positionY, probe.positionZ);
+    float3 probePosition = probe.position;
 
     Spectrum spectrum = SpectrumZero();
     float3 throughput = float3(1.0);

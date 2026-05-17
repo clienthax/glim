@@ -60,6 +60,7 @@ namespace stilb
             }
         }
 
+        // todo remove this
         [MenuItem("Test/ZeroL2Coefficients")]
         static void ZeroL2Coefficients()
         {
@@ -76,6 +77,7 @@ namespace stilb
             for (int i = 0; i < bakedCoeff.arraySize; i++)
             {
                 SerializedProperty prop = bakedCoeff.GetArrayElementAtIndex(i);
+                Debug.Log($"Probe {i}:");
 
                 prop.Next(true);
 
@@ -92,6 +94,10 @@ namespace stilb
                     if (channelCoeff >= 4)
                     {
                         prop.floatValue = 0f;
+                    }
+                    else
+                    {
+                        Debug.Log($" [{j}] = {prop.floatValue}");
                     }
 
                     prop.Next(false);

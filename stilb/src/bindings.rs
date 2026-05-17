@@ -74,14 +74,26 @@ pub extern "C" fn app_add_probe(app: *mut Stilb, mut position: Vector3) {
     position.transform_space(system);
 
     let probe = SHProbe {
-        l0: Vector3::ZERO,
+        position,
         pad0: 0,
-        l1x: Vector3::ZERO,
-        position_x: position.x,
-        l1y: Vector3::ZERO,
-        position_y: position.y,
-        l1z: Vector3::ZERO,
-        position_z: position.z,
+        l0: Vector3::ZERO,
+        pad1: 0,
+        l1_1: Vector3::ZERO,
+        pad2: 0,
+        l10: Vector3::ZERO,
+        pad3: 0,
+        l11: Vector3::ZERO,
+        pad4: 0,
+        l2_2: Vector3::ZERO,
+        pad5: 0,
+        l2_1: Vector3::ZERO,
+        pad6: 0,
+        l20: Vector3::ZERO,
+        pad7: 0,
+        l21: Vector3::ZERO,
+        pad8: 0,
+        l22: Vector3::ZERO,
+        pad9: 0,
     };
 
     app.probes.push(probe);

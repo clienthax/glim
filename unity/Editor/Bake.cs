@@ -144,9 +144,9 @@ namespace stilb
 
                     float[] flatCoefficients = new float[27]
                     {
-                        probeData.l0.x, probeData.l1y.x, probeData.l1z.x, probeData.l1x.x, 0f, 0f, 0f, 0f, 0f,
-                        probeData.l0.y, probeData.l1y.y, probeData.l1z.y, probeData.l1x.y, 0f, 0f, 0f, 0f, 0f,
-                        probeData.l0.z, probeData.l1y.z, probeData.l1z.z, probeData.l1x.z, 0f, 0f, 0f, 0f, 0f
+                        probeData.L0.x, probeData.L1_1.x, probeData.L10.x, probeData.L11.x, probeData.L2_2.x, probeData.L2_1.x, probeData.L20.x, probeData.L21.x, probeData.L22.x,
+                        probeData.L0.y, probeData.L1_1.y, probeData.L10.y, probeData.L11.y, probeData.L2_2.y, probeData.L2_1.y, probeData.L20.y, probeData.L21.y, probeData.L22.y,
+                        probeData.L0.z, probeData.L1_1.z, probeData.L10.z, probeData.L11.z, probeData.L2_2.z, probeData.L2_1.z, probeData.L20.z, probeData.L21.z, probeData.L22.z
                     };
 
                     prop.Next(true);

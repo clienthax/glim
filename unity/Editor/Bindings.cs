@@ -100,20 +100,35 @@ namespace stilb
             public float shadow_radius_or_angle;
         }
 
-        [StructLayout(LayoutKind.Sequential)]
+        [StructLayout(LayoutKind.Sequential, Pack = 16)]
         public struct SHProbe
         {
-            public Vector3 l0;
-            public uint pad0;
+            public Vector3 Position;
+            public uint Pad0;
 
-            public Vector3 l1x;
-            public float position_x;
+            // L0
+            public Vector3 L0;
+            public uint Pad1;
 
-            public Vector3 l1y;
-            public float position_y;
+            // L1
+            public Vector3 L1_1;
+            public uint Pad2;
+            public Vector3 L10;
+            public uint Pad3;
+            public Vector3 L11;
+            public uint Pad4;
 
-            public Vector3 l1z;
-            public float position_z;
+            // L2
+            public Vector3 L2_2;
+            public uint Pad5;
+            public Vector3 L2_1;
+            public uint Pad6;
+            public Vector3 L20;
+            public uint Pad7;
+            public Vector3 L21;
+            public uint Pad8;
+            public Vector3 L22;
+            public uint Pad9;
         }
 
         [StructLayout(LayoutKind.Sequential)]
