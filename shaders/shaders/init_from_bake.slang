@@ -1,4 +1,4 @@
-#include "includes/mesh.slang"
+#include "includes/core.slang"
 
 [[vk::push_constant]]
 PushConstants Push;
@@ -97,10 +97,5 @@ static const float2 kJitterOffsets[25] = {
     [shader("fragment")] float4 fragment(Varyings varyings)
     : SV_Target
 {
-    // Surface surf = Surface::Get(Push.indices, Push.vertices, varyings.primitiveID, varyings.bary);
-    // return float4(surf.N, 1);
-
-    // todo
-    //  EncodeVisibilityBuffer
-    return float4(varyings.bary, asfloat(varyings.primitiveID), 1.0);
+    return EncodeVisibilityBuffer(varyings.bary, varyings.primitiveID, true, false);
 }
