@@ -24,7 +24,7 @@ mod tests {
             throttle_preview_ms: 2,
             callback: test_save_callback,
             probes_callback: test_probes_callback,
-            texture_filter: TextureSamplerFilter::Nearest,
+            texture_filter: TextureSamplerFilter::Linear,
             probe_samples: 4096,
             probe_bounces: 3,
         };
