@@ -9,7 +9,6 @@
 - [ ] Directional lightmaps
 
 ## Other
-- [ ] Figure out why light probes are a bit darker
 - [ ] Include OIDN dlls
 - [ ] Area lights
 - [ ] Seam stitching
@@ -18,8 +17,6 @@
 - [ ] Deringing
 - [ ] SH Lightmaps
 - [ ] Light tree
-- [ ] Blue noise
-- [ ] Stop closing and opening the scene twice
 - [ ] Proper sync for bake loop
 - [ ] Probe occlusion
 - [ ] Try to stop unity from slowing down the bake start for no reason
@@ -29,9 +26,11 @@
 - [ ] Sync scene view fov
 - [ ] Return codes for bake success, fail, cancel
 - [ ] Log callback
-- [ ] Double sided global illumination
 
 # Complete
+- [x] Figure out why light probes are a bit darker
+- [x] Blue noise
+- [x] Double sided global illumination
 - [x] Clamp max samples and bounces
 - [x] Move test to another crate so gltf and image are not dependencies
 - [x] Configurable nearest and linear sampler
