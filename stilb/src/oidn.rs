@@ -69,6 +69,7 @@ type FnSetSharedFilterImage = unsafe extern "C" fn(
     usize,
 );
 
+#[allow(dead_code)]
 pub struct Oidn {
     _lib: Library,
     release_device: FnReleaseDevice,
@@ -110,7 +111,7 @@ impl Oidn {
             // todo GPU device
             let device = new_device(OIDNDeviceType::CPU);
             commit_device(device);
-            let filter = new_filter(device, c"RT".as_ptr());
+            let filter = new_filter(device, c"RTLightmap".as_ptr());
 
             Ok(Self {
                 release_device: *lib.get(b"oidnReleaseDevice\0")?,
@@ -128,20 +129,11 @@ impl Oidn {
         }
     }
 
-    pub fn denoise(
-        &self,
-        pixels: &mut [f32],
-        normals: &mut [f32],
-        width: usize,
-        height: usize,
-    ) -> Vec<f32> {
+    pub fn denoise(&self, pixels: &mut [f32], width: usize, height: usize) {
         let pixel_stride = 4 * std::mem::size_of::<f32>();
-        let mut output = vec![0.0f32; pixels.len()];
 
         let filter = self.filter;
         let device = self.device;
-
-        let mut albedo = vec![0.5f32; pixels.len()];
 
         unsafe {
             (self.set_shared_filter_image)(
@@ -157,30 +149,8 @@ impl Oidn {
             );
             (self.set_shared_filter_image)(
                 filter,
-                c"albedo".as_ptr(),
-                albedo.as_mut_ptr() as *mut c_void,
-                OIDNFormat::Float3,
-                width,
-                height,
-                0,
-                pixel_stride,
-                0,
-            );
-            (self.set_shared_filter_image)(
-                filter,
-                c"normal".as_ptr(),
-                normals.as_mut_ptr() as *mut c_void,
-                OIDNFormat::Float3,
-                width,
-                height,
-                0,
-                pixel_stride,
-                0,
-            );
-            (self.set_shared_filter_image)(
-                filter,
                 c"output".as_ptr(),
-                output.as_mut_ptr() as *mut c_void,
+                pixels.as_mut_ptr() as *mut c_void,
                 OIDNFormat::Float3,
                 width,
                 height,
@@ -189,8 +159,6 @@ impl Oidn {
                 0,
             );
 
-            (self.set_filter_bool)(filter, c"cleanAux".as_ptr(), true);
-            (self.set_filter_bool)(filter, c"hdr".as_ptr(), true);
             (self.commit_filter)(filter);
             (self.execute_filter)(filter);
 
@@ -205,8 +173,6 @@ impl Oidn {
                 eprintln!("OIDN error {:?}: {}", err, s);
             }
         }
-
-        output
     }
 }
 
