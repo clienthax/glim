@@ -1,7 +1,11 @@
 use ash::vk::{self, Handle};
 
 use crate::{
-    CoordinateSystem, buffer::Buffer, math::*, seams::find_seams, vulkan_context::VulkanContext,
+    CoordinateSystem, Stilb,
+    buffer::Buffer,
+    math::*,
+    seams::{Seam, find_seams},
+    vulkan_context::VulkanContext,
 };
 use core::slice;
 
@@ -52,16 +56,21 @@ pub fn encode_normal_octahedron(n: Vector3) -> Vector2 {
 }
 
 impl Mesh {
-    pub fn append_ffi_mesh(&mut self, mesh: FfiMesh, system: CoordinateSystem) {
+    pub fn append_ffi_mesh(
+        &mut self,
+        mesh: FfiMesh,
+        system: CoordinateSystem,
+        all_seams: &mut Vec<Seam>,
+    ) {
         let positions =
             unsafe { slice::from_raw_parts(mesh.vertices, mesh.vertices_length as usize) };
         let normals = unsafe { slice::from_raw_parts(mesh.normals, mesh.vertices_length as usize) };
         let uvs = unsafe { slice::from_raw_parts(mesh.uvs, mesh.vertices_length as usize) };
         let indices = unsafe { slice::from_raw_parts(mesh.indices, mesh.indices_length as usize) };
 
+        // let sample_scale = 20.0;
         let seams = find_seams(indices, positions, normals, uvs);
-
-        // println!("Seams: {:#?} ", seams);
+        all_seams.extend(seams);
 
         let offset = self.vertices.len() as u32;
 

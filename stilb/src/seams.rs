@@ -4,33 +4,36 @@ use crate::math::*;
 
 #[derive(Debug, Clone, Hash, PartialEq, Eq)]
 pub struct Edge {
-    pub a: u32,
-    pub b: u32,
+    pub i0: u32,
+    pub i1: u32,
 }
 
 impl Edge {
     #[inline]
     fn new_sorted(i0: u32, i1: u32) -> Self {
         if i0 < i1 {
-            Self { a: i0, b: i1 }
+            Self { i0, i1 }
         } else {
-            Self { a: i1, b: i0 }
+            Self { i0: i1, i1: i0 }
         }
     }
 }
 
 #[derive(Debug, Clone)]
 pub struct Seam {
-    // Edge0
-    pub e0p0: Vector3,
-    pub e0uv0: Vector2,
-    pub e0p1: Vector3,
-    pub e0uv1: Vector2,
-    // Edge1
-    pub e1p0: Vector3,
-    pub e1uv0: Vector2,
-    pub e1p1: Vector3,
-    pub e1uv1: Vector2,
+    pub position0: Vector3,
+    pub position1: Vector3,
+    pub edge0_uv0: Vector2,
+    pub edge1_uv0: Vector2,
+    pub edge0_uv1: Vector2,
+    pub edge1_uv1: Vector2,
+}
+
+#[derive(Debug, Clone)]
+pub struct SamplePoint {
+    pub position: Vector3,
+    pub uv_a: Vector2,
+    pub uv_b: Vector2,
 }
 
 #[inline]
@@ -54,25 +57,25 @@ pub fn find_seams(
     let mut edges = HashSet::new();
 
     let is_seam = |a: &Edge, b: &Edge| -> bool {
-        let pa0 = positions[a.a as usize];
-        let na0 = normals[a.a as usize];
-        let uva0 = uvs[a.a as usize];
+        let pa0 = positions[a.i0 as usize];
+        let na0 = normals[a.i0 as usize];
+        let uva0 = uvs[a.i0 as usize];
 
-        let pb0 = positions[b.a as usize];
-        let nb0 = normals[b.a as usize];
-        let uvb0 = uvs[b.a as usize];
+        let pb0 = positions[b.i0 as usize];
+        let nb0 = normals[b.i0 as usize];
+        let uvb0 = uvs[b.i0 as usize];
 
         let positions_equal = approx_eq_vec3(pa0, pb0);
         let normals_equal = approx_eq_vec3(na0, nb0);
         let uvs_equal = approx_eq_vec2(uva0, uvb0);
 
         if positions_equal && normals_equal && !uvs_equal {
-            let pa1 = positions[a.b as usize];
-            let na1 = normals[a.b as usize];
-            let uva1 = uvs[a.b as usize];
-            let pb1 = positions[b.b as usize];
-            let nb1 = normals[b.b as usize];
-            let uvb1 = uvs[b.b as usize];
+            let pa1 = positions[a.i1 as usize];
+            let na1 = normals[a.i1 as usize];
+            let uva1 = uvs[a.i1 as usize];
+            let pb1 = positions[b.i1 as usize];
+            let nb1 = normals[b.i1 as usize];
+            let uvb1 = uvs[b.i1 as usize];
 
             let positions_equal = approx_eq_vec3(pa1, pb1);
             let normals_equal = approx_eq_vec3(na1, nb1);
@@ -99,6 +102,8 @@ pub fn find_seams(
 
     let edges: Vec<Edge> = edges.into_iter().collect();
 
+    let mut seam_edges = Vec::new();
+
     let mut seams = Vec::new();
     for i in 0..edges.len() {
         for j in (i + 1)..edges.len() {
@@ -106,25 +111,42 @@ pub fn find_seams(
             let e1 = &edges[j];
 
             if is_seam(e0, e1) {
-                let e0p0 = positions[e0.a as usize];
-                let e0uv0 = uvs[e0.a as usize];
-                let e0p1 = positions[e0.b as usize];
-                let e0uv1 = uvs[e0.b as usize];
+                seam_edges.push(e0.clone());
+                seam_edges.push(e1.clone());
 
-                let e1p0 = positions[e1.a as usize];
-                let e1uv0 = uvs[e1.a as usize];
-                let e1p1 = positions[e1.b as usize];
-                let e1uv1 = uvs[e1.b as usize];
+                let position0 = positions[e0.i0 as usize];
+                let position1 = positions[e0.i1 as usize];
+
+                let edge0_uv0 = uvs[e0.i0 as usize];
+                let edge0_uv1 = uvs[e0.i1 as usize];
+
+                let edge1_uv0 = uvs[e1.i0 as usize];
+                let edge1_uv1 = uvs[e1.i1 as usize];
+
+                debug_assert!(approx_eq_vec3(
+                    positions[e0.i0 as usize],
+                    positions[e1.i0 as usize]
+                ));
+                debug_assert!(approx_eq_vec3(
+                    positions[e0.i1 as usize],
+                    positions[e1.i1 as usize]
+                ));
+                debug_assert!(approx_eq_vec3(
+                    normals[e0.i0 as usize],
+                    normals[e1.i0 as usize]
+                ));
+                debug_assert!(approx_eq_vec3(
+                    normals[e0.i1 as usize],
+                    normals[e1.i1 as usize]
+                ));
 
                 seams.push(Seam {
-                    e0p0,
-                    e0uv0,
-                    e0p1,
-                    e0uv1,
-                    e1p0,
-                    e1uv0,
-                    e1p1,
-                    e1uv1,
+                    position0,
+                    position1,
+                    edge0_uv0,
+                    edge0_uv1,
+                    edge1_uv0,
+                    edge1_uv1,
                 });
             }
         }
@@ -132,5 +154,45 @@ pub fn find_seams(
 
     println!("found {} seams out of {} edges", seams.len(), edges.len());
 
+    // println!("Seams: {:#?} ", seams);
+
     seams
+}
+
+fn is_inside_chart(pixels: &[f32]) -> bool {
+    false
+}
+
+pub fn fix_seams(pixels: &mut [f32], seams: &[Seam], sample_scale: f32) {
+    let mut sample_points = Vec::new();
+
+    for seam in seams {
+        let position0 = seam.position0;
+        let position1 = seam.position1;
+
+        let length = Vector3::distance(position0, position1);
+
+        let samples = u32::max(3, (length * sample_scale).ceil() as u32);
+
+        for i in 0..samples {
+            let t = i as f32 / (samples - 1) as f32;
+
+            let position = Vector3::lerp(position0, position1, t);
+
+            let uv_a = Vector2::lerp(seam.edge0_uv0, seam.edge0_uv1, t);
+            let uv_b = Vector2::lerp(seam.edge1_uv0, seam.edge1_uv1, t);
+
+            sample_points.push(SamplePoint {
+                position,
+                uv_a,
+                uv_b,
+            });
+        }
+    }
+
+    println!(
+        "created sample points {} for {} seams",
+        sample_points.len(),
+        seams.len()
+    );
 }

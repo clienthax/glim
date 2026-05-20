@@ -11,6 +11,7 @@ use crate::buffer::Buffer;
 use crate::compute_shader::{BakeSHPushConstants, load_bake_sh_shader, update_bake_sh_shader};
 use crate::graphics_shader::update_visibility_shader;
 use crate::lights::light_buffer_flags;
+use crate::seams::{Seam, fix_seams};
 use crate::sh::SHProbe;
 use crate::{
     camera::Camera,
@@ -55,6 +56,7 @@ pub struct Stilb {
     pub cpu_mesh: Mesh,
     pub cpu_lights: Vec<Light>,
     pub groups: Vec<LightmapGroup>,
+    pub seams: Vec<Seam>,
 
     pub gpu_mesh: GpuMesh,
     pub gpu_lights: Buffer,
@@ -707,6 +709,8 @@ fn bake_lightmaps(app: &mut Stilb) {
                     None => {}
                 }
             }
+
+            fix_seams(&mut pixels, &app.seams, 256.);
 
             let readback_data = ReadbackData {
                 group_index,
@@ -1445,6 +1449,7 @@ impl Stilb {
             probes_buffer: Buffer::null(),
             bake_probes_shader: ComputeShader::null(),
             push_probes,
+            seams: Vec::new(),
         }
     }
 }

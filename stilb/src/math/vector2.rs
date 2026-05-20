@@ -28,6 +28,14 @@ impl Vector2 {
         self.length_squared().sqrt()
     }
 
+    pub fn lerp(a: Self, b: Self, t: f32) -> Self {
+        let clamped_t = t.clamp(0.0, 1.0);
+        Self {
+            x: a.x + (b.x - a.x) * clamped_t,
+            y: a.y + (b.y - a.y) * clamped_t,
+        }
+    }
+
     pub fn abs(self) -> Self {
         Self {
             x: f32::abs(self.x),

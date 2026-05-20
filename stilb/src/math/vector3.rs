@@ -52,6 +52,30 @@ impl Vector3 {
         self.length_squared().sqrt()
     }
 
+    pub fn distance(a: Self, b: Self) -> f32 {
+        let dx = a.x - b.x;
+        let dy = a.y - b.y;
+        let dz = a.z - b.z;
+        (dx * dx + dy * dy + dz * dz).sqrt()
+    }
+
+    pub fn lerp(a: Self, b: Self, t: f32) -> Self {
+        let clamped_t = t.clamp(0.0, 1.0);
+        Self {
+            x: a.x + (b.x - a.x) * clamped_t,
+            y: a.y + (b.y - a.y) * clamped_t,
+            z: a.z + (b.z - a.z) * clamped_t,
+        }
+    }
+
+    pub fn lerp_unclamped(a: Self, b: Self, t: f32) -> Self {
+        Self {
+            x: a.x + (b.x - a.x) * t,
+            y: a.y + (b.y - a.y) * t,
+            z: a.z + (b.z - a.z) * t,
+        }
+    }
+
     pub fn abs(self) -> Self {
         Self {
             x: f32::abs(self.x),
