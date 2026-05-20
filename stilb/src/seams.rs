@@ -55,24 +55,33 @@ pub fn find_seams(
 
     let is_seam = |a: &Edge, b: &Edge| -> bool {
         let pa0 = positions[a.a as usize];
-        let pa1 = positions[a.b as usize];
         let na0 = normals[a.a as usize];
-        let na1 = normals[a.b as usize];
         let uva0 = uvs[a.a as usize];
-        let uva1 = uvs[a.b as usize];
 
         let pb0 = positions[b.a as usize];
-        let pb1 = positions[b.b as usize];
         let nb0 = normals[b.a as usize];
-        let nb1 = normals[b.b as usize];
         let uvb0 = uvs[b.a as usize];
-        let uvb1 = uvs[b.b as usize];
 
-        let positions_equal = approx_eq_vec3(pa0, pb0) && approx_eq_vec3(pa1, pb1);
-        let normals_equal = approx_eq_vec3(na0, nb0) && approx_eq_vec3(na1, nb1);
-        let uvs_equal = approx_eq_vec2(uva0, uvb0) && approx_eq_vec2(uva1, uvb1);
+        let positions_equal = approx_eq_vec3(pa0, pb0);
+        let normals_equal = approx_eq_vec3(na0, nb0);
+        let uvs_equal = approx_eq_vec2(uva0, uvb0);
 
-        positions_equal && normals_equal && !uvs_equal
+        if positions_equal && normals_equal && !uvs_equal {
+            let pa1 = positions[a.b as usize];
+            let na1 = normals[a.b as usize];
+            let uva1 = uvs[a.b as usize];
+            let pb1 = positions[b.b as usize];
+            let nb1 = normals[b.b as usize];
+            let uvb1 = uvs[b.b as usize];
+
+            let positions_equal = approx_eq_vec3(pa1, pb1);
+            let normals_equal = approx_eq_vec3(na1, nb1);
+            let uvs_equal = approx_eq_vec2(uva1, uvb1);
+
+            return positions_equal && normals_equal && !uvs_equal;
+        }
+
+        false
     };
 
     let mut i = 0;
