@@ -61,6 +61,7 @@ impl Mesh {
         mesh: FfiMesh,
         system: CoordinateSystem,
         all_seams: &mut Vec<Seam>,
+        add_seams: bool,
     ) {
         let positions =
             unsafe { slice::from_raw_parts(mesh.vertices, mesh.vertices_length as usize) };
@@ -71,13 +72,14 @@ impl Mesh {
         // let sample_scale = 20.0;
         let unity = system == CoordinateSystem::Unity;
 
-        let mut flip = true;
-        if unity {
-            flip = false;
+        if add_seams {
+            let mut flip = true;
+            if unity {
+                flip = false;
+            }
+            let seams = find_seams(indices, positions, normals, uvs, flip);
+            all_seams.extend(seams);
         }
-
-        let seams = find_seams(indices, positions, normals, uvs, flip);
-        all_seams.extend(seams);
 
         let offset = self.vertices.len() as u32;
 

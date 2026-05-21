@@ -18,7 +18,7 @@ namespace stilb
         public uint maxSamples = 512;
         public bool dilate = true;
         public bool denoise = true;
-        public bool fix_seams = true;
+        public bool fixSeams = true;
         public LightmapSaveFormat format = LightmapSaveFormat.EXR;
         public Texture2D.EXRFlags exrFlags = Texture2D.EXRFlags.OutputAsFloat | Texture2D.EXRFlags.CompressZIP;
     }

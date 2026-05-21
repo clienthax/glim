@@ -66,7 +66,7 @@ namespace stilb
                 this.probe_samples = probe_samples;
                 this.probe_bounces = probe_bounces;
                 this.vulkan_validation_layers = false;
-                this.seams_debug = true;
+                this.seams_debug = false;
 
                 var currentPipeline = GraphicsSettings.currentRenderPipeline;
                 uint autoFalloff = 0;
@@ -110,7 +110,7 @@ namespace stilb
             }
 
             public LightmapSettings(LightmapGroup group) :
-                this(group.resolution, group.resolution, group.maxSamples, group.bounceCount, group.dilate, group.denoise, group.fix_seams)
+                this(group.resolution, group.resolution, group.maxSamples, group.bounceCount, group.dilate, group.denoise, group.fixSeams)
             {
                 return;
             }

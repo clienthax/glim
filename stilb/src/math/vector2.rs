@@ -28,6 +28,11 @@ impl Vector2 {
         self.length_squared().sqrt()
     }
 
+    pub fn normalize(self) -> Self {
+        let len = self.length();
+        if len > 0.0 { self / len } else { Self::ZERO }
+    }
+
     pub fn lerp(a: Self, b: Self, t: f32) -> Self {
         let clamped_t = t.clamp(0.0, 1.0);
         Self {
@@ -71,9 +76,16 @@ impl Mul for Vector2 {
     }
 }
 
-impl Div for Vector2 {
+impl Div<Vector2> for Vector2 {
     type Output = Vector2;
     fn div(self, rhs: Vector2) -> Vector2 {
         Vector2::new(self.x / rhs.x, self.y / rhs.y)
+    }
+}
+
+impl Div<f32> for Vector2 {
+    type Output = Vector2;
+    fn div(self, rhs: f32) -> Vector2 {
+        Vector2::new(self.x / rhs, self.y / rhs)
     }
 }

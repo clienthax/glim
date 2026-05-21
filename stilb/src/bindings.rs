@@ -45,6 +45,7 @@ pub extern "C" fn app_add_mesh(app: *mut Stilb, mesh: FfiMesh) -> ErrorCode {
             mesh,
             app.config.coordinate_system,
             &mut app.seams,
+            !app.config.is_preview,
         );
     }));
 
