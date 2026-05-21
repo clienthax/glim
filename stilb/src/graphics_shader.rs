@@ -30,6 +30,7 @@ impl GraphicsShader {
         push_constant_ranges: &[vk::PushConstantRange],
         specialization_info: &vk::SpecializationInfo,
         target: &Texture2D,
+        conservative: bool,
     ) -> Self {
         let create_info = vk::DescriptorSetLayoutCreateInfo::default().bindings(bindings);
 
@@ -125,7 +126,7 @@ impl GraphicsShader {
             .scissors(&scissors)
             .viewports(&viewports);
 
-        let rasterizer = vk::PipelineRasterizationStateCreateInfo {
+        let mut rasterizer = vk::PipelineRasterizationStateCreateInfo {
             polygon_mode: vk::PolygonMode::FILL,
             cull_mode: vk::CullModeFlags::NONE,
             front_face: vk::FrontFace::COUNTER_CLOCKWISE,
@@ -133,6 +134,16 @@ impl GraphicsShader {
             ..Default::default()
         };
 
+        let mut conservative_raster_state =
+            vk::PipelineRasterizationConservativeStateCreateInfoEXT {
+                conservative_rasterization_mode: vk::ConservativeRasterizationModeEXT::OVERESTIMATE,
+                extra_primitive_overestimation_size: 1.0,
+                ..Default::default()
+            };
+
+        if conservative {
+            rasterizer = rasterizer.push_next(&mut conservative_raster_state);
+        }
         let multisampling = vk::PipelineMultisampleStateCreateInfo {
             rasterization_samples: vk::SampleCountFlags::TYPE_1,
             ..Default::default()
@@ -284,10 +295,14 @@ pub struct VisibilityPushConstants {
     pub width: u32,
     pub height: u32,
     pub group_index: u32,
-    pub pad1: u32,
+    pub convervative: u32,
 }
 
-pub fn create_visibility_shader(vk: &mut VulkanContext, visibility: &Texture2D) -> GraphicsShader {
+pub fn create_visibility_shader(
+    vk: &mut VulkanContext,
+    visibility: &Texture2D,
+    conservative: bool,
+) -> GraphicsShader {
     let mut bindings = Vec::new();
 
     let stage_flags = vk::ShaderStageFlags::GEOMETRY
@@ -327,6 +342,7 @@ pub fn create_visibility_shader(vk: &mut VulkanContext, visibility: &Texture2D) 
         &push_constant_ranges,
         &vk::SpecializationInfo::default(),
         visibility,
+        conservative,
     );
     shader
 }

@@ -8,7 +8,7 @@ struct PushConstants
     uint width;
     uint height;
     uint groupIndex;
-    float padding1;
+    uint convervative;
 };
 
 struct Varyings
@@ -72,6 +72,11 @@ static const float2 kJitterOffsets[25] = {
     float2 texelSize = 1.0 / float2(Push.width, Push.height);
 
     float2 jitter = kJitterOffsets[input[0].instanceID] * (texelSize * 0.5);
+
+    if (Push.convervative > 0)
+    {
+        jitter = float2(0, 0);
+    }
 
     for (int i = 0; i < 3; i++)
     {

@@ -248,11 +248,18 @@ fn render_visibility_buffer_bake(
             | vk::ImageUsageFlags::COLOR_ATTACHMENT,
     );
 
-    let mut shader = create_visibility_shader(vk, &visibility);
+    let mut shader = create_visibility_shader(vk, &visibility, false);
+    let mut shader_convervative = create_visibility_shader(vk, &visibility, true);
 
     update_visibility_shader(
         vk,
         &shader,
+        app.gpu_mesh.index_buffer.buffer,
+        app.gpu_mesh.vertex_buffer.buffer,
+    );
+    update_visibility_shader(
+        vk,
+        &shader_convervative,
         app.gpu_mesh.index_buffer.buffer,
         app.gpu_mesh.vertex_buffer.buffer,
     );
@@ -266,8 +273,8 @@ fn render_visibility_buffer_bake(
     }];
 
     let mut render_pass_begin = vk::RenderPassBeginInfo {
-        render_pass: shader.render_pass,
-        framebuffer: shader.framebuffer,
+        render_pass: shader_convervative.render_pass,
+        framebuffer: shader_convervative.framebuffer,
         render_area: vk::Rect2D {
             offset: vk::Offset2D { x: 0, y: 0 },
             extent: vk::Extent2D {
@@ -280,18 +287,49 @@ fn render_visibility_buffer_bake(
 
     render_pass_begin = render_pass_begin.clear_values(&clear_values);
 
-    let push = VisibilityPushConstants {
-        width: visibility.width(),
-        height: visibility.height(),
-        group_index,
-        pad1: 0,
-    };
-
-    let constants_bytes = as_bytes(&push);
-
     unsafe {
         vk.device
             .cmd_begin_render_pass(cmd, &render_pass_begin, vk::SubpassContents::INLINE);
+        vk.device.cmd_bind_pipeline(
+            cmd,
+            vk::PipelineBindPoint::GRAPHICS,
+            shader_convervative.pipeline,
+        );
+
+        vk.device.cmd_bind_descriptor_sets(
+            cmd,
+            vk::PipelineBindPoint::GRAPHICS,
+            shader_convervative.pipeline_layout,
+            0,
+            &[shader_convervative.descriptor_set],
+            &[],
+        );
+
+        let push = VisibilityPushConstants {
+            width: visibility.width(),
+            height: visibility.height(),
+            group_index,
+            convervative: 1,
+        };
+        let constants_bytes = as_bytes(&push);
+        vk.device.cmd_push_constants(
+            cmd,
+            shader_convervative.pipeline_layout,
+            vk::ShaderStageFlags::GEOMETRY
+                | vk::ShaderStageFlags::FRAGMENT
+                | vk::ShaderStageFlags::VERTEX,
+            0,
+            &constants_bytes,
+        );
+
+        vk.device.cmd_draw(cmd, mesh.index_len, 1, 0, 0);
+
+        // vk.device.cmd_end_render_pass(cmd);
+
+        // non conservative
+
+        // vk.device
+        //     .cmd_begin_render_pass(cmd, &render_pass_begin2, vk::SubpassContents::INLINE);
         vk.device
             .cmd_bind_pipeline(cmd, vk::PipelineBindPoint::GRAPHICS, shader.pipeline);
 
@@ -304,6 +342,13 @@ fn render_visibility_buffer_bake(
             &[],
         );
 
+        let push = VisibilityPushConstants {
+            width: visibility.width(),
+            height: visibility.height(),
+            group_index,
+            convervative: 0,
+        };
+        let constants_bytes = as_bytes(&push);
         vk.device.cmd_push_constants(
             cmd,
             shader.pipeline_layout,
@@ -321,6 +366,7 @@ fn render_visibility_buffer_bake(
     vk.end_single_use_cmd(cmd);
 
     shader.destroy(vk);
+    shader_convervative.destroy(vk);
 
     visibility
 }
