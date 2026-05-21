@@ -1,6 +1,7 @@
 # Todo
 
 ## Priority
+- [ ] Conservative rasterization
 - [ ] Alpha test
 - [ ] Spot lights
 - [ ] Spot light cookie with default unity cookie
@@ -11,7 +12,6 @@
 ## Other
 - [ ] Include OIDN dlls
 - [ ] Area lights
-- [ ] Seam stitching
 - [ ] Add support for CWBVH
 - [ ] UV Packing per chart
 - [ ] Deringing
@@ -23,13 +23,14 @@
 - [ ] Bake reflection probes with super sampling
 
 ## Easy
-- [ ] Better panic handling
 - [ ] Sync scene view fov
-- [ ] Return codes for bake success, fail, cancel
 - [ ] Log callback
 - [ ] Match shadow radius
 
 # Complete
+- [x] Return codes for bake success, fail, cancel
+- [x] Better panic handling
+- [x] Seam stitching
 - [x] Figure out why light probes are a bit darker
 - [x] Blue noise
 - [x] Double sided global illumination

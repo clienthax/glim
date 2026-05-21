@@ -303,6 +303,7 @@ float4 AdjustSamplePositions(Surface surface, float4 visibility)
 
     uint primitiveID = asuint(visibility.z);
     float2 bary = visibility.xy;
+    bary = saturate(bary);
 
     uint2 resolution;
     VisibilityBuffer.GetDimensions(resolution.x, resolution.y);

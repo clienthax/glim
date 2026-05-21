@@ -131,8 +131,8 @@ mod tests {
         let settings = LightmapSettings {
             width: w,
             height: h,
-            bounce_count: 2,
-            max_samples: 256,
+            bounce_count: 5,
+            max_samples: 2048,
             denoise: true,
             dilate: true,
             fix_seams: true,

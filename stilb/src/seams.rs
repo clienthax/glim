@@ -178,7 +178,7 @@ pub fn find_seams(
 
             if seam != 0 {
                 if seam == 2 {
-                    std::mem::swap(&mut e0.a, &mut e0.b);
+                    std::mem::swap(&mut e1.a, &mut e1.b);
                 }
 
                 let mut edge0_uv0 = uvs[e0.a as usize];
@@ -296,7 +296,7 @@ pub fn fix_seams(
 ) {
     let mut sample_points = Vec::new();
 
-    let sample_scale = (width * height).isqrt() as f32;
+    let sample_scale = (width * height).isqrt() as f32 * 1.5;
 
     let edge_constraint_weight = 5.0;
     let tolerance = 0.001;
