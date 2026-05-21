@@ -1,5 +1,6 @@
 // todo seams with different lightmap groups
 // split meshes by group
+// expose seam fix parameters
 
 use std::collections::{HashMap, HashSet};
 
@@ -34,7 +35,6 @@ pub struct Seam {
 
 #[derive(Debug, Clone)]
 pub struct SamplePoint {
-    pub position: Vector3,
     pub uv_a: Vector2,
     pub uv_b: Vector2,
 }
@@ -268,16 +268,10 @@ pub fn fix_seams(pixels: &mut [f32], width: u32, height: u32, seams: &[Seam]) {
         for i in 0..samples {
             let t = i as f32 / (samples - 1) as f32;
 
-            let position = Vector3::lerp(position0, position1, t);
-
             let uv_a = Vector2::lerp(seam.edge0_uv0, seam.edge0_uv1, t);
             let uv_b = Vector2::lerp(seam.edge1_uv0, seam.edge1_uv1, t);
 
-            sample_points.push(SamplePoint {
-                position,
-                uv_a,
-                uv_b,
-            });
+            sample_points.push(SamplePoint { uv_a, uv_b });
         }
     }
 
@@ -715,12 +709,6 @@ impl VectorX {
             sum += a[i] * b[i];
         }
         sum
-    }
-
-    pub fn mul_add(out_vec: &mut VectorX, v: &VectorX, a: f32, b: &VectorX) {
-        for i in 0..v.size() {
-            out_vec[i] = v[i] * a + b[i];
-        }
     }
 
     pub fn add_scaled(&mut self, other: &VectorX, scale: f32) {

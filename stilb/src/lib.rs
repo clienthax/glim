@@ -739,8 +739,15 @@ fn bake_lightmaps(app: &mut Stilb) {
 
             let mut pixels = diffuse.read_pixels(&app.vk);
 
+            let start_time = std::time::Instant::now();
+
             dilate(&mut pixels, width, height);
 
+            let now = std::time::Instant::now();
+            let elapsed = now.duration_since(start_time).as_secs_f32();
+            println!("dilated in {}s", elapsed);
+
+            let start_time = std::time::Instant::now();
             if settings.denoise {
                 match &oidn {
                     Some(oidn) => {
@@ -750,7 +757,17 @@ fn bake_lightmaps(app: &mut Stilb) {
                 }
             }
 
+            let now = std::time::Instant::now();
+            let elapsed = now.duration_since(start_time).as_secs_f32();
+            println!("denoised in {}s", elapsed);
+
+            let start_time = std::time::Instant::now();
+
             fix_seams(&mut pixels, width, height, &app.seams);
+
+            let now = std::time::Instant::now();
+            let elapsed = now.duration_since(start_time).as_secs_f32();
+            println!("fixed seams in {}s", elapsed);
 
             let readback_data = ReadbackData {
                 group_index,
