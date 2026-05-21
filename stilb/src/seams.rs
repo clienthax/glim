@@ -263,7 +263,7 @@ pub fn dilate(pixels: &mut [f32], width: u32, height: u32) {
     }
 }
 
-pub fn fix_seams(pixels: &mut [f32], width: u32, height: u32, seams: &[Seam]) {
+pub fn fix_seams(pixels: &mut [f32], width: u32, height: u32, seams: &[Seam], debug: bool) {
     let mut sample_points = Vec::new();
 
     let sample_scale = width as f32;
@@ -316,9 +316,11 @@ pub fn fix_seams(pixels: &mut [f32], width: u32, height: u32, seams: &[Seam]) {
                 let g = pixels[pixel_index + 1];
                 let b = pixels[pixel_index + 2];
 
-                // pixels[pixel_index] = 0.0;
-                // pixels[pixel_index + 1] = 1.0;
-                // pixels[pixel_index + 2] = 0.0;
+                if debug {
+                    pixels[pixel_index] = 1.0;
+                    pixels[pixel_index + 1] = 0.0;
+                    pixels[pixel_index + 2] = 0.0;
+                }
 
                 let color = Vector3::new(r, g, b);
 
@@ -340,9 +342,11 @@ pub fn fix_seams(pixels: &mut [f32], width: u32, height: u32, seams: &[Seam]) {
                 let g = pixels[pixel_index + 1];
                 let b = pixels[pixel_index + 2];
 
-                // pixels[pixel_index] = 1.0;
-                // pixels[pixel_index + 1] = 0.0;
-                // pixels[pixel_index + 2] = 0.0;
+                if debug {
+                    pixels[pixel_index] = 0.0;
+                    pixels[pixel_index + 1] = 1.0;
+                    pixels[pixel_index + 2] = 0.0;
+                }
 
                 let color = Vector3::new(r, g, b);
 
@@ -361,6 +365,10 @@ pub fn fix_seams(pixels: &mut [f32], width: u32, height: u32, seams: &[Seam]) {
         sample_points.len(),
         seams.len()
     );
+
+    if debug {
+        return;
+    }
 
     let total_pixels = pixel_info.len();
     let mut at_a = SparseMat::new(total_pixels, total_pixels);

@@ -26,10 +26,9 @@ namespace stilb
         {
             public readonly CoordinateSystem coordinate_system;
 
-            [MarshalAs(UnmanagedType.I1)]
-            public readonly bool is_preview;
-            [MarshalAs(UnmanagedType.I1)]
-            public readonly bool vulkan_validation_layers;
+            [MarshalAs(UnmanagedType.I1)] public readonly bool is_preview;
+            [MarshalAs(UnmanagedType.I1)] public readonly bool vulkan_validation_layers;
+            [MarshalAs(UnmanagedType.I1)] public readonly bool seams_debug;
             public readonly uint throttle_preview_ms;
             public readonly LightmapSettings preview_settings;
 
@@ -67,6 +66,7 @@ namespace stilb
                 this.probe_samples = probe_samples;
                 this.probe_bounces = probe_bounces;
                 this.vulkan_validation_layers = false;
+                this.seams_debug = true;
 
                 var currentPipeline = GraphicsSettings.currentRenderPipeline;
                 uint autoFalloff = 0;
@@ -88,14 +88,33 @@ namespace stilb
         [StructLayout(LayoutKind.Sequential)]
         public struct LightmapSettings
         {
-            public uint width;
-            public uint height;
+            public readonly uint width;
+            public readonly uint height;
 
-            public uint max_samples;
-            public uint bounce_count;
+            public readonly uint max_samples;
+            public readonly uint bounce_count;
 
-            [MarshalAs(UnmanagedType.I1)]
-            public bool denoise;
+            [MarshalAs(UnmanagedType.I1)] public readonly bool dilate;
+            [MarshalAs(UnmanagedType.I1)] public readonly bool denoise;
+            [MarshalAs(UnmanagedType.I1)] public readonly bool fix_seams;
+
+            public LightmapSettings(uint width, uint height, uint max_samples, uint bounce_count, bool dilate, bool denoise, bool fix_seams)
+            {
+                this.width = width;
+                this.height = height;
+                this.max_samples = max_samples;
+                this.bounce_count = bounce_count;
+                this.dilate = dilate;
+                this.denoise = denoise;
+                this.fix_seams = fix_seams;
+            }
+
+            public LightmapSettings(LightmapGroup group) :
+                this(group.resolution, group.resolution, group.maxSamples, group.bounceCount, group.dilate, group.denoise, group.fix_seams)
+            {
+                return;
+            }
+
         }
 
         const string DLL_NAME = "stilb";
@@ -104,22 +123,22 @@ namespace stilb
         public static extern IntPtr app_new(StilbConfig config);
 
         [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-        public static extern void app_run(IntPtr app);
+        public static extern int app_run(IntPtr app);
 
         [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-        public static extern void app_destroy(IntPtr app);
+        public static extern int app_destroy(IntPtr app);
 
         [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-        public static extern void app_add_mesh(IntPtr app, Mesh mesh);
+        public static extern int app_add_mesh(IntPtr app, Mesh mesh);
 
         [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-        public static extern void app_add_probe(IntPtr app, Vector3 position);
+        public static extern int app_add_probe(IntPtr app, Vector3 position);
 
         [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-        public static extern void app_add_light(IntPtr app, Light light);
+        public static extern int app_add_light(IntPtr app, Light light);
 
         [DllImport(DLL_NAME, CallingConvention = CallingConvention.Cdecl)]
-        public static unsafe extern void app_add_lightmap_group(IntPtr app, LightmapSettings settings, byte* albedoPixels, uint albedoPixelsLength, float* emissionPixels, uint emissionPixelsLength);
+        public static unsafe extern int app_add_lightmap_group(IntPtr app, LightmapSettings settings, byte* albedoPixels, uint albedoPixelsLength, float* emissionPixels, uint emissionPixelsLength);
 
         [StructLayout(LayoutKind.Sequential)]
         public unsafe struct Mesh

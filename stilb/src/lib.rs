@@ -154,7 +154,9 @@ pub struct LightmapSettings {
     pub max_samples: u32,
     pub bounce_count: u32,
 
+    pub dilate: bool,
     pub denoise: bool,
+    pub fix_seams: bool,
 }
 
 pub struct LightmapGroup {
@@ -192,6 +194,7 @@ pub struct StilbConfig {
 
     pub is_preview: bool,
     pub vulkan_validation_layers: bool,
+    pub seams_debug: bool,
     pub throttle_preview_ms: u32,
     pub preview_settings: LightmapSettings,
 
@@ -739,35 +742,46 @@ fn bake_lightmaps(app: &mut Stilb) {
 
             let mut pixels = diffuse.read_pixels(&app.vk);
 
-            let start_time = std::time::Instant::now();
+            if settings.dilate {
+                let start_time = std::time::Instant::now();
 
-            dilate(&mut pixels, width, height);
+                dilate(&mut pixels, width, height);
 
-            let now = std::time::Instant::now();
-            let elapsed = now.duration_since(start_time).as_secs_f32();
-            println!("dilated in {}s", elapsed);
+                let now = std::time::Instant::now();
+                let elapsed = now.duration_since(start_time).as_secs_f32();
+                println!("dilated in {}s", elapsed);
+            }
 
-            let start_time = std::time::Instant::now();
             if settings.denoise {
+                let start_time = std::time::Instant::now();
+
                 match &oidn {
                     Some(oidn) => {
                         oidn.denoise(&mut pixels, width as usize, height as usize);
                     }
                     None => {}
                 }
+
+                let now = std::time::Instant::now();
+                let elapsed = now.duration_since(start_time).as_secs_f32();
+                println!("denoised in {}s", elapsed);
             }
 
-            let now = std::time::Instant::now();
-            let elapsed = now.duration_since(start_time).as_secs_f32();
-            println!("denoised in {}s", elapsed);
+            if settings.fix_seams {
+                let start_time = std::time::Instant::now();
 
-            let start_time = std::time::Instant::now();
+                fix_seams(
+                    &mut pixels,
+                    width,
+                    height,
+                    &app.seams,
+                    app.config.seams_debug,
+                );
 
-            fix_seams(&mut pixels, width, height, &app.seams);
-
-            let now = std::time::Instant::now();
-            let elapsed = now.duration_since(start_time).as_secs_f32();
-            println!("fixed seams in {}s", elapsed);
+                let now = std::time::Instant::now();
+                let elapsed = now.duration_since(start_time).as_secs_f32();
+                println!("fixed seams in {}s", elapsed);
+            }
 
             let readback_data = ReadbackData {
                 group_index,

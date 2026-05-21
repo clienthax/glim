@@ -19,14 +19,7 @@ namespace stilb
         {
             groupAsset = group;
 
-            settings = new Bindings.LightmapSettings
-            {
-                width = group.resolution,
-                height = group.resolution,
-                max_samples = group.maxSamples,
-                bounce_count = group.bounceCount,
-                denoise = group.denoise,
-            };
+            settings = new Bindings.LightmapSettings(group);
 
             using var metaAlbedo = new MetaTexture((int)settings.width, MetaTexture.AtlasType.Albedo);
             using var metaEmission = new MetaTexture((int)settings.width, MetaTexture.AtlasType.Emission);

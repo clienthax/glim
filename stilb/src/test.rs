@@ -2,6 +2,7 @@
 mod tests {
     use crate::bindings::*;
     use crate::bmp::save_bmp;
+    use crate::lights::LightType;
     use crate::mesh::FfiMesh;
     use crate::{math::*, *};
 
@@ -12,6 +13,8 @@ mod tests {
             max_samples: 512,
             bounce_count: 3,
             denoise: false,
+            dilate: false,
+            fix_seams: false,
         };
 
         let config = StilbConfig {
@@ -28,6 +31,7 @@ mod tests {
             probe_bounces: 3,
             light_falloff: LightFalloffType::InverseSquare,
             vulkan_validation_layers: true,
+            seams_debug: false,
         };
         config
     }
@@ -130,6 +134,8 @@ mod tests {
             bounce_count: 2,
             max_samples: 256,
             denoise: true,
+            dilate: true,
+            fix_seams: true,
         };
 
         app_add_lightmap_group(

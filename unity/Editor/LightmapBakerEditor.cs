@@ -89,13 +89,8 @@ namespace stilb
             {
                 var camera = SceneView.lastActiveSceneView.camera;
 
-                var previewSettings = new Bindings.LightmapSettings
-                {
-                    width = baker.previewWidth,
-                    height = baker.previewHeight,
-                    max_samples = baker.previewSamples,
-                    bounce_count = baker.previewBounces,
-                };
+                var previewSettings = new Bindings.LightmapSettings(
+                    baker.previewWidth, baker.previewHeight, baker.previewSamples, baker.previewBounces, false, false, false);
 
                 var config = new Bindings.StilbConfig(
                     Bindings.CoordinateSystem.Unity,

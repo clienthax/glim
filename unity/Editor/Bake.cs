@@ -55,6 +55,7 @@ namespace stilb
 
             if (_bakeResults.Count == 0)
             {
+                ResetBake();
                 return;
             }
             try
@@ -252,6 +253,11 @@ namespace stilb
                 {
                     var app = Bindings.app_new(config);
 
+                    if (app == null)
+                    {
+                        throw new Exception("stilb failed to launch");
+                    }
+
 
                     for (int i = 0; i < ctx.sceneMesh.Count; i++)
                     {
@@ -276,7 +282,11 @@ namespace stilb
                                     backface_gi = data.backfaceGI,
                                 };
 
-                                Bindings.app_add_mesh(app, exportedMesh);
+                                int result0 = Bindings.app_add_mesh(app, exportedMesh);
+                                if (result0 != 0)
+                                {
+                                    throw new Exception($"failed to add mesh {i}");
+                                }
                             }
                         }
                     }
@@ -285,7 +295,11 @@ namespace stilb
 
                     foreach (var light in ctx.sceneLights)
                     {
-                        Bindings.app_add_light(app, light);
+                        int result1 = Bindings.app_add_light(app, light);
+                        if (result1 != 0)
+                        {
+                            throw new Exception($"failed to add light");
+                        }
                     }
 
                     foreach (var group in ctx.groups)
@@ -295,7 +309,7 @@ namespace stilb
                             fixed (Color32* albedoPtr = group.albedo)
                             fixed (Color* emissionsPtr = group.emission)
                             {
-                                Bindings.app_add_lightmap_group(
+                                int result2 = Bindings.app_add_lightmap_group(
                                     app,
                                     group.settings,
                                     (byte*)albedoPtr,
@@ -303,6 +317,10 @@ namespace stilb
                                     (float*)emissionsPtr,
                                     (uint)(group.emission.Length * 4)
                                 );
+                                if (result2 != 0)
+                                {
+                                    throw new Exception($"failed to add lightmap group");
+                                }
                             }
                         }
                         group.ClearPixels();
@@ -313,7 +331,11 @@ namespace stilb
                         Bindings.app_add_probe(app, position);
                     }
 
-                    Bindings.app_run(app);
+                    int result = Bindings.app_run(app);
+                    if (result != 0)
+                    {
+                        throw new Exception($"stil failed to start");
+                    }
 
                     Bindings.app_destroy(app);
                     _running = false;
@@ -322,6 +344,7 @@ namespace stilb
                 catch (Exception e)
                 {
                     _running = false;
+                    _isComplete = true;
                     Debug.LogException(e);
                 }
             });
