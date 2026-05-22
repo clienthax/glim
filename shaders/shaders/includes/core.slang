@@ -204,6 +204,11 @@ void AccumulateColor(RWTexture2D<float4> tex, uint2 coords, uint sample, float4 
         float weight = 1.0 / (float(sample) + 1.0);
         float4 accumulatedColor = 1;
         accumulatedColor.rgb = lerp(previousColor.rgb, color.rgb, weight);
+        accumulatedColor.a = previousColor.a + color.a;
+        if (sample == 0)
+        {
+            accumulatedColor.a = color.a;
+        }
 
         tex[coords] = accumulatedColor;
     }
@@ -333,57 +338,29 @@ float4 AdjustSamplePositions(Surface surface, float4 visibility)
     float3 worldTexelU = dPdU * texelSizeUV.x;
     float3 worldTexelV = dPdV * texelSizeUV.y;
 
-    float rayLength = (length(worldTexelU) + length(worldTexelV)) * 0.5;
+    float rayLength = (length(worldTexelU) + length(worldTexelV)) * (sqrt(2.0) / 2.0);
 
     float3 u = normalize(worldTexelU - dot(worldTexelU, surface.Ng) * surface.Ng);
     float3 v = normalize(worldTexelV - dot(worldTexelV, surface.Ng) * surface.Ng);
     float3 rayDirs[4] = {u, -u, v, -v};
 
-    float3 correctedP = surface.P;
-    float3 correctedNg = surface.Ng;
-    bool foundLeak = false;
-    float bias = 0.00001;
-
-    // https://ndotl.wordpress.com/2018/08/29/baking-artifact-free-lightmaps/
+    Ray leakRay;
+    leakRay.P = RayOffset(surface.P, surface.Ng);
+    leakRay.tMin = 0;
+    leakRay.tMax = rayLength;
+    Hit leakHit;
     for (int i = 0; i < 4; i++)
     {
-        Ray leakRay;
-        leakRay.P = RayOffset(surface.P, surface.Ng);
         leakRay.D = rayDirs[i];
-        leakRay.tMin = 0;
-        leakRay.tMax = rayLength;
 
-        Hit leakHit;
         if (TraceRay(leakRay, leakHit))
         {
             if (!leakHit.frontFace)
             {
-                Surface hitSurface = Surface::Get(leakHit.primitiveID, leakHit.bary);
-                correctedP = surface.P + (rayDirs[i] * leakHit.t) + (hitSurface.Ng * bias);
-                foundLeak = true;
-                break;
+                return 0;
             }
         }
     }
-
-    if (foundLeak)
-    {
-        Ray findNewTri;
-        findNewTri.P = RayOffset(correctedP, surface.Ng);
-        findNewTri.D = -surface.Ng;
-        findNewTri.tMin = 0;
-        findNewTri.tMax = 0.001;
-
-        Hit newHit;
-        if (TraceRay(findNewTri, newHit))
-        {
-            primitiveID = newHit.primitiveID;
-            bary = newHit.bary;
-        }
-    }
-
-    visibility.xy = bary;
-    visibility.z = asfloat(primitiveID);
 
     bool smoothP = UseSmoothPosition(surface);
     uint encoded = asuint(visibility.a);
