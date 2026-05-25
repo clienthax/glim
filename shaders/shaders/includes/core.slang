@@ -3,7 +3,6 @@
 #include "bindings.slang"
 
 static const float RAY_MAX = 10000.0;
-#define ALPHA_TEST 1
 
 struct Ray
 {
@@ -42,7 +41,7 @@ EncodeVisibilityBuffer(float2 bary, uint primitiveID, bool isVisible, bool useSm
 //     return GetSurface(query.CommittedPrimitiveIndex(), query.CommittedTriangleBarycentrics());
 // }
 
-void QueryHandleAlpha<let T : uint>(RayQuery<T> query)
+void QueryHandleAlpha<let T : uint>(inout RayQuery<T> query)
 {
     if (query.CandidateType() != CANDIDATE_NON_OPAQUE_TRIANGLE)
     {
@@ -52,13 +51,13 @@ void QueryHandleAlpha<let T : uint>(RayQuery<T> query)
     uint primitiveID = query.CandidatePrimitiveIndex();
     float2 bary = query.CandidateTriangleBarycentrics();
 
-    // Surface surf = GetSurface(primitiveID, bary);
-    // float mask = Albedo.SampleLevel(samp, uv, 0).r;
+    Surface surf = Surface::Get(primitiveID, bary);
+    float alpha = SampleAlbedo(surf.uv, surf.lightmapGroup).a;
 
-    // if (mask >= 0.5)
-    // {
-    //     query.CommitNonOpaqueTriangleHit();
-    // }
+    if (alpha >= 0.5)
+    {
+        query.CommitNonOpaqueTriangleHit();
+    }
 }
 
 // hit is not always initialized
@@ -71,17 +70,15 @@ bool TraceRay(Ray ray, out Hit hit)
     rayDesc.TMin = ray.tMin;
     rayDesc.TMax = ray.tMax;
 
-    RayQuery<RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES> query;
+    RayQuery query;
     query.TraceRayInline(TopLevelAS, RAY_FLAG_NONE, 0xFF, rayDesc);
 
     while (query.Proceed())
     {
-#if ALPHA_TEST > 0
         QueryHandleAlpha(query);
-#endif
     }
 
-    if (query.CommittedStatus() != COMMITTED_NOTHING)
+    if (query.CommittedStatus() == COMMITTED_TRIANGLE_HIT)
     {
         hit.bary = query.CommittedTriangleBarycentrics();
         hit.primitiveID = query.CommittedPrimitiveIndex();
@@ -102,17 +99,15 @@ bool TraceShadowRay(Ray ray)
     rayDesc.TMin = ray.tMin;
     rayDesc.TMax = ray.tMax;
 
-    RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES> query;
-    query.TraceRayInline(TopLevelAS, RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH | RAY_FLAG_SKIP_PROCEDURAL_PRIMITIVES, 0xFF, rayDesc);
+    RayQuery<RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH> query;
+    query.TraceRayInline(TopLevelAS, RAY_FLAG_ACCEPT_FIRST_HIT_AND_END_SEARCH, 0xFF, rayDesc);
 
     while (query.Proceed())
     {
-#if ALPHA_TEST > 0
         QueryHandleAlpha(query);
-#endif
     }
 
-    return query.CommittedStatus() != COMMITTED_NOTHING;
+    return query.CommittedStatus() == COMMITTED_TRIANGLE_HIT;
 }
 
 // "A Fast and Robust Method for Avoiding Self-Intersection" (Carsten Wächter and Nikolaus Binder)

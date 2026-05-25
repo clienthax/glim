@@ -40,8 +40,14 @@ pub extern "C" fn app_add_mesh(app: *mut Stilb, mesh: FfiMesh) -> ErrorCode {
     let result = catch_unwind(AssertUnwindSafe(|| {
         let app = unsafe { &mut *app };
 
+        let target_mesh = if mesh.transparent {
+            &mut app.transparent_mesh
+        } else {
+            &mut app.opaque_mesh
+        };
+
         Mesh::append_ffi_mesh(
-            &mut app.cpu_mesh,
+            target_mesh,
             mesh,
             app.config.coordinate_system,
             &mut app.seams,

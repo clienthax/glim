@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using UnityEditor;
 using UnityEngine;
@@ -39,6 +40,12 @@ namespace stilb
             // var emissionAtlas = new Texture2D((int)settings.width, (int)settings.height, TextureFormat.RGBAFloat, 1, true);
             // emissionAtlas.SetPixels(emission);
             // AssetDatabase.CreateAsset(emissionAtlas, "Assets/EmissionAtlas.asset");
+
+
+            // var albedoAtlas = new Texture2D((int)settings.width, (int)settings.height, TextureFormat.ARGB32, 1, true);
+            // albedoAtlas.SetPixels32(albedo);
+            // var albedoBytes = albedoAtlas.EncodeToTGA();
+            // File.WriteAllBytes("Assets/AbledoAtlas.tga", albedoBytes);
 
             Debug.Log($"Group width: {settings.width}, height:{settings.height}");
         }

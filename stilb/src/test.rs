@@ -68,27 +68,35 @@ mod tests {
         // let mut offset = 0.0;
         // for _ in 0..1 {
         // {
-        add_mesh(app, "../meshes/monkey.glb").expect("failed to load mesh");
-        let (w, h, emission_pixels) = load_tga("../textures/emission_cute.tga").unwrap();
+        // add_mesh(app, "../meshes/monkey.glb").expect("failed to load mesh");
+        // add_mesh(app, "../meshes/random.glb").expect("failed to load mesh");
+        // let (w, h, emission_pixels) = load_tga("../textures/emission_cute.tga").unwrap();
+        // let w = 512;
+        // let h = 512;
         // let emission_pixels = vec![0.0; (w * h * 4) as usize];
-        let albedo_pixels = vec![255; (w * h * 4) as usize];
+        // let albedo_pixels = vec![255; (w * h * 4) as usize];
         // }
 
-        // app_add_light(
-        //     app,
-        //     Light {
-        //         ty: LightType::Point,
-        //         position: Vector3 {
-        //             x: 0.0 + offset,
-        //             y: 1.0,
-        //             z: 0.0,
-        //         },
-        //         direction: Vector3::ZERO,
-        //         range: 5.0,
-        //         color: Vector3::new(1.0, 1.0, 1.0) * 1.0,
-        //         shadow_radius_or_angle: 0.1,
-        //     },
-        // );
+        // flower
+        add_mesh(app, "../meshes/flower.glb", true).expect("failed to load mesh");
+        let (w, h, albedo_pixels) = load_tga_u8("../textures/flower.tga").unwrap();
+        let emission_pixels = vec![0.0; (w * h * 4) as usize];
+
+        app_add_light(
+            app,
+            Light {
+                ty: LightType::Point,
+                position: Vector3 {
+                    x: 0.0,
+                    y: 1.0,
+                    z: 0.0,
+                },
+                direction: Vector3::ZERO,
+                range: 5.0,
+                color: Vector3::new(1.0, 1.0, 1.0) * 3.0,
+                shadow_radius_or_angle: 0.1,
+            },
+        );
 
         //     offset += 5.0;
         //     for m in &mut mesh.vertices {
@@ -160,7 +168,7 @@ mod tests {
         app_destroy(app);
     }
 
-    pub fn load_tga(path: &str) -> std::io::Result<(u32, u32, Vec<f32>)> {
+    pub fn load_tga_f32(path: &str) -> std::io::Result<(u32, u32, Vec<f32>)> {
         let img = image::open(path)
             .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?
             .to_rgba8();
@@ -172,7 +180,19 @@ mod tests {
         Ok((width, height, pixels))
     }
 
-    pub fn add_mesh(app: *mut Stilb, path: &str) -> std::io::Result<()> {
+    pub fn load_tga_u8(path: &str) -> std::io::Result<(u32, u32, Vec<u8>)> {
+        let img = image::open(path)
+            .map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?
+            .to_rgba8();
+
+        let width = img.width();
+        let height = img.height();
+        let pixels = img.into_raw();
+
+        Ok((width, height, pixels))
+    }
+
+    pub fn add_mesh(app: *mut Stilb, path: &str, flip_uv: bool) -> std::io::Result<()> {
         let (document, buffers, _) =
             gltf::import(path).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
 
@@ -201,12 +221,20 @@ mod tests {
 
                 if let Some(iter) = reader.read_tex_coords(1) {
                     for uv in iter.into_f32() {
-                        uvs.push(Vector2::new(uv[0], uv[1]));
+                        if flip_uv {
+                            uvs.push(Vector2::new(uv[0], 1.0 - uv[1]));
+                        } else {
+                            uvs.push(Vector2::new(uv[0], uv[1]));
+                        }
                     }
                 } else {
                     if let Some(iter) = reader.read_tex_coords(0) {
                         for uv in iter.into_f32() {
-                            uvs.push(Vector2::new(uv[0], uv[1]));
+                            if flip_uv {
+                                uvs.push(Vector2::new(uv[0], 1.0 - uv[1]));
+                            } else {
+                                uvs.push(Vector2::new(uv[0], uv[1]));
+                            }
                         }
                     }
                 }
@@ -224,6 +252,7 @@ mod tests {
                     indices_length: indices.len() as u32,
                     lightmap_group: 0,
                     backface_gi: false,
+                    transparent: true,
                 };
                 app_add_mesh(app, mesh);
             }

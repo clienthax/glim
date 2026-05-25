@@ -19,6 +19,7 @@ pub struct FfiMesh {
     pub indices_length: u32,
     pub lightmap_group: u32,
     pub backface_gi: bool,
+    pub transparent: bool,
 }
 
 #[repr(C)]
@@ -30,7 +31,7 @@ pub struct Vertex {
     pub uv: Vector2,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct Mesh {
     pub vertices: Vec<Vertex>,
     pub indices: Vec<u32>,
@@ -197,7 +198,7 @@ pub struct GpuMesh {
 }
 
 impl GpuMesh {
-    pub fn new(vk: &VulkanContext, mesh: &Mesh) -> Self {
+    pub fn new(vk: &VulkanContext, opaque_mesh: &Mesh, transparent_mesh: &Mesh) -> Self {
         let mut usage = vk::BufferUsageFlags::TRANSFER_DST
             | vk::BufferUsageFlags::STORAGE_BUFFER
             | vk::BufferUsageFlags::SHADER_DEVICE_ADDRESS;
@@ -206,16 +207,24 @@ impl GpuMesh {
             usage |= vk::BufferUsageFlags::ACCELERATION_STRUCTURE_BUILD_INPUT_READ_ONLY_KHR;
         }
 
+        let opaque_triangle_count = (opaque_mesh.indices.len() / 3) as u32;
+        let transparent_triangle_count = (transparent_mesh.indices.len() / 3) as u32;
+
+        let mut merged_mesh = opaque_mesh.clone();
+        merged_mesh.merge_mesh(transparent_mesh);
+
         // vertices
-        let vertex_buffer = Buffer::new(vk, &mesh.vertices, usage);
-        let index_buffer = Buffer::new(vk, &mesh.indices, usage);
+        let vertex_buffer = Buffer::new(vk, &merged_mesh.vertices, usage);
+        let index_buffer = Buffer::new(vk, &merged_mesh.indices, usage);
 
         let bvh = if vk.as_device.is_some() {
             AccelerationStructureType::RayQuery(GpuMesh::create_vulkan_blas(
                 vk,
-                mesh,
+                &merged_mesh,
                 vertex_buffer.address,
                 index_buffer.address,
+                opaque_triangle_count,
+                transparent_triangle_count,
             ))
         } else {
             AccelerationStructureType::CwBvh // todo
@@ -225,7 +234,7 @@ impl GpuMesh {
             vertex_buffer,
             index_buffer,
             acceleration_structure: bvh,
-            index_len: mesh.indices.len() as u32,
+            index_len: merged_mesh.indices.len() as u32,
         }
     }
 
@@ -234,6 +243,8 @@ impl GpuMesh {
         mesh: &Mesh,
         vertex_address: vk::DeviceAddress,
         index_address: vk::DeviceAddress,
+        opaque_triangle_count: u32,
+        transparent_triangle_count: u32,
     ) -> VulkanAs {
         let triangles = vk::AccelerationStructureGeometryTrianglesDataKHR {
             vertex_format: vk::Format::R32G32B32_SFLOAT,
@@ -249,16 +260,35 @@ impl GpuMesh {
             ..Default::default()
         };
 
-        let geometry = vk::AccelerationStructureGeometryKHR {
-            geometry_type: vk::GeometryTypeKHR::TRIANGLES,
-            geometry: vk::AccelerationStructureGeometryDataKHR {
-                triangles: triangles,
-            },
-            flags: vk::GeometryFlagsKHR::OPAQUE,
-            ..Default::default()
-        };
+        let mut geometries = Vec::new();
+        let mut max_primitive_counts = Vec::new();
+        let mut ranges = Vec::new();
 
-        let geometries = [geometry];
+        if opaque_triangle_count > 0 {
+            let opaque_geometry = vk::AccelerationStructureGeometryKHR {
+                geometry_type: vk::GeometryTypeKHR::TRIANGLES,
+                geometry: vk::AccelerationStructureGeometryDataKHR {
+                    triangles: triangles,
+                },
+                flags: vk::GeometryFlagsKHR::OPAQUE,
+                ..Default::default()
+            };
+            geometries.push(opaque_geometry);
+            max_primitive_counts.push(opaque_triangle_count);
+        }
+
+        if transparent_triangle_count > 0 {
+            let transparent_geometry = vk::AccelerationStructureGeometryKHR {
+                geometry_type: vk::GeometryTypeKHR::TRIANGLES,
+                geometry: vk::AccelerationStructureGeometryDataKHR {
+                    triangles: triangles,
+                },
+                flags: vk::GeometryFlagsKHR::NO_DUPLICATE_ANY_HIT_INVOCATION,
+                ..Default::default()
+            };
+            geometries.push(transparent_geometry);
+            max_primitive_counts.push(transparent_triangle_count);
+        }
 
         let build_info = vk::AccelerationStructureBuildGeometryInfoKHR::default()
             .ty(vk::AccelerationStructureTypeKHR::BOTTOM_LEVEL)
@@ -266,8 +296,6 @@ impl GpuMesh {
             .geometries(&geometries);
 
         let mut size_info = vk::AccelerationStructureBuildSizesInfoKHR::default();
-
-        let max_primitive_count = (mesh.indices.len() / 3) as u32;
 
         let Some(as_device) = &vk.as_device else {
             unreachable!("expected as device");
@@ -277,7 +305,7 @@ impl GpuMesh {
             as_device.get_acceleration_structure_build_sizes(
                 vk::AccelerationStructureBuildTypeKHR::DEVICE,
                 &build_info,
-                &[max_primitive_count],
+                &max_primitive_counts,
                 &mut size_info,
             )
         };
@@ -323,14 +351,27 @@ impl GpuMesh {
         };
         as_build_geometry_info = as_build_geometry_info.geometries(&geometries);
 
-        let range_info = vk::AccelerationStructureBuildRangeInfoKHR {
-            primitive_count: max_primitive_count,
+        let opaque_range = vk::AccelerationStructureBuildRangeInfoKHR {
+            primitive_count: opaque_triangle_count,
             primitive_offset: 0,
             first_vertex: 0,
             transform_offset: 0,
         };
 
-        let ranges = [range_info];
+        let transparent_range = vk::AccelerationStructureBuildRangeInfoKHR {
+            primitive_count: transparent_triangle_count,
+            primitive_offset: opaque_triangle_count * 3 * size_of::<u32>() as u32,
+            first_vertex: 0,
+            transform_offset: 0,
+        };
+
+        if opaque_triangle_count > 0 {
+            ranges.push(opaque_range)
+        }
+
+        if transparent_triangle_count > 0 {
+            ranges.push(transparent_range)
+        }
 
         let cmd = vk.begin_single_use_cmd();
 

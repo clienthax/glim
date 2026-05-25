@@ -53,7 +53,8 @@ pub struct Stilb {
     pub vk: VulkanContext,
     pub window: *mut GLFWwindow,
 
-    pub cpu_mesh: Mesh,
+    pub opaque_mesh: Mesh,
+    pub transparent_mesh: Mesh,
     pub cpu_lights: Vec<Light>,
     pub groups: Vec<LightmapGroup>,
     pub seams: Vec<Seam>,
@@ -386,6 +387,8 @@ fn render_visibility_buffer_camera(app: &mut Stilb, width: u32, height: u32) -> 
             | vk::ImageUsageFlags::SAMPLED,
     );
 
+    let albedos: Vec<vk::ImageView> = app.groups.iter().map(|x| x.albedo.view()).collect();
+
     update_init_from_camera_shader(
         vk,
         shader,
@@ -393,6 +396,8 @@ fn render_visibility_buffer_camera(app: &mut Stilb, width: u32, height: u32) -> 
         &visibility,
         app.gpu_mesh.index_buffer.buffer,
         app.gpu_mesh.vertex_buffer.buffer,
+        &albedos,
+        app.texture_sampler,
     );
     visibility
 }
@@ -507,7 +512,7 @@ fn clear_texture(
 
 // main bake function
 fn start_bake(app: &mut Stilb) {
-    assert!(app.cpu_mesh.vertices.len() > 0);
+    assert!(app.opaque_mesh.vertices.len() > 0 || app.transparent_mesh.vertices.len() > 0);
 
     app.bake_shader = load_bake_lights_shader(
         &app.vk,
@@ -555,11 +560,11 @@ fn start_bake(app: &mut Stilb) {
         app.gpu_lights = Buffer::new(&app.vk, &dummy_buffer, light_buffer_flags());
     }
 
-    app.gpu_mesh = GpuMesh::new(&app.vk, &app.cpu_mesh);
+    app.gpu_mesh = GpuMesh::new(&app.vk, &app.opaque_mesh, &app.transparent_mesh);
     println!(
         "Uploaded mesh Vertices: {} Triangles: {}",
-        app.cpu_mesh.vertices.len(),
-        app.cpu_mesh.indices.len()
+        app.opaque_mesh.vertices.len() + app.transparent_mesh.vertices.len(),
+        app.opaque_mesh.indices.len() + app.transparent_mesh.indices.len(),
     );
 
     let mesh::AccelerationStructureType::RayQuery(blas) = &app.gpu_mesh.acceleration_structure
@@ -610,6 +615,9 @@ fn bake_lightmaps(app: &mut Stilb) {
         let window = app.window;
 
         let preview_settings = app.config.preview_settings.clone();
+
+        app.init_from_camera_shader =
+            load_init_from_camera_shader(&app.vk, app.groups.len() as u32);
 
         update_render_target(app, &preview_settings, 0);
 
@@ -1493,11 +1501,7 @@ impl Stilb {
         fwd.transform_space(config.coordinate_system);
         camera.set_forward(fwd);
 
-        let init_from_camera_shader = if config.is_preview {
-            load_init_from_camera_shader(&vk)
-        } else {
-            ComputeShader::null()
-        };
+        let init_from_camera_shader = ComputeShader::null();
 
         let gpu_lights = Buffer::null();
 
@@ -1542,14 +1546,20 @@ impl Stilb {
             pad0: 0,
         };
 
-        let cpu_mesh = Mesh {
+        let opaque_mesh = Mesh {
+            vertices: Vec::new(),
+            indices: Vec::new(),
+        };
+
+        let transparent_mesh = Mesh {
             vertices: Vec::new(),
             indices: Vec::new(),
         };
 
         Self {
             vk,
-            cpu_mesh,
+            opaque_mesh,
+            transparent_mesh,
             window: window,
             config: config,
             cpu_lights: Vec::new(),
