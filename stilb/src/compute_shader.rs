@@ -380,12 +380,13 @@ pub struct BakeSHPushConstants {
     pub bounce_count: u32,
 }
 
-pub fn load_bake_lights_shader(
+pub fn load_bake_shader(
     vk: &VulkanContext,
     use_camera: bool,
     light_falloff_type: LightFalloffType,
     lightmap_groups: u32,
     transparent_primitive_offset: u32,
+    emissive_triangles_count: u32,
 ) -> ComputeShader {
     let mut bindings = Vec::new();
 
@@ -470,6 +471,15 @@ pub fn load_bake_lights_shader(
         ..Default::default()
     });
 
+    // EmissiveTriangles
+    bindings.push(vk::DescriptorSetLayoutBinding {
+        binding: 12,
+        descriptor_type: vk::DescriptorType::STORAGE_BUFFER,
+        descriptor_count: 1,
+        stage_flags: vk::ShaderStageFlags::COMPUTE,
+        ..Default::default()
+    });
+
     let size = std::mem::size_of::<u32>();
     let map_entries = [
         vk::SpecializationMapEntry {
@@ -487,6 +497,11 @@ pub fn load_bake_lights_shader(
             offset: 2 * (size as u32),
             size: size,
         },
+        vk::SpecializationMapEntry {
+            constant_id: 3,
+            offset: 3 * (size as u32),
+            size: size,
+        },
     ];
 
     let use_camera: u32 = if use_camera { 1 } else { 0 };
@@ -494,6 +509,7 @@ pub fn load_bake_lights_shader(
         use_camera,
         light_falloff_type as u32,
         transparent_primitive_offset,
+        emissive_triangles_count,
     ];
     let data_bytes = as_bytes(&data);
 
@@ -765,7 +781,7 @@ pub fn update_bake_sh_shader(
     unsafe { vk.device.update_descriptor_sets(&descriptor_writes, &[]) };
 }
 
-pub fn update_bake_lights_shader(
+pub fn update_bake_shader(
     vk: &VulkanContext,
     shader: &ComputeShader,
     tlas: vk::AccelerationStructureKHR,
@@ -777,6 +793,7 @@ pub fn update_bake_lights_shader(
     indices: vk::Buffer,
     vertices: vk::Buffer,
     lights: vk::Buffer,
+    emissive_triangles: vk::Buffer,
 ) {
     let mut descriptor_writes = Vec::new();
 
@@ -913,6 +930,21 @@ pub fn update_bake_lights_shader(
     let mut write = vk::WriteDescriptorSet {
         dst_set: shader.descriptor_set,
         dst_binding: 10,
+        descriptor_type: vk::DescriptorType::STORAGE_BUFFER,
+        ..Default::default()
+    };
+    write = write.buffer_info(&info);
+    descriptor_writes.push(write);
+
+    // EmissiveTriangles
+    let info = [vk::DescriptorBufferInfo {
+        buffer: emissive_triangles,
+        offset: 0,
+        range: vk::WHOLE_SIZE,
+    }];
+    let mut write = vk::WriteDescriptorSet {
+        dst_set: shader.descriptor_set,
+        dst_binding: 12,
         descriptor_type: vk::DescriptorType::STORAGE_BUFFER,
         ..Default::default()
     };

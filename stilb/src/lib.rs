@@ -16,8 +16,8 @@ use crate::sh::SHProbe;
 use crate::{
     camera::Camera,
     compute_shader::{
-        BakePushConstants, ComputeShader, load_bake_lights_shader, load_init_from_camera_shader,
-        update_bake_lights_shader, update_init_from_camera_shader,
+        BakePushConstants, ComputeShader, load_bake_shader, load_init_from_camera_shader,
+        update_bake_shader, update_init_from_camera_shader,
     },
     graphics_shader::{VisibilityPushConstants, create_visibility_shader},
     lights::Light,
@@ -56,11 +56,13 @@ pub struct Stilb {
     pub opaque_mesh: Mesh,
     pub transparent_mesh: Mesh,
     pub cpu_lights: Vec<Light>,
+    pub emissive_triangles: Vec<u32>,
     pub groups: Vec<LightmapGroup>,
     pub seams: Vec<Seam>,
 
     pub gpu_mesh: GpuMesh,
     pub gpu_lights: Buffer,
+    pub emissive_triangles_buffer: Buffer,
     pub tlas: VulkanAs,
 
     pub camera: Camera,
@@ -165,6 +167,7 @@ pub struct LightmapGroup {
 
     pub albedo: Texture2D,
     pub emission: Texture2D,
+    pub emission_pixels: Vec<f32>,
 }
 
 #[repr(u32)]
@@ -514,12 +517,17 @@ fn clear_texture(
 fn start_bake(app: &mut Stilb) {
     assert!(app.opaque_mesh.vertices.len() > 0 || app.transparent_mesh.vertices.len() > 0);
 
-    app.bake_shader = load_bake_lights_shader(
+    let total_triangles = (app.opaque_mesh.indices.len() + app.transparent_mesh.indices.len()) / 3;
+
+    extract_emissive_triangles(app);
+
+    app.bake_shader = load_bake_shader(
         &app.vk,
         app.config.is_preview,
         app.config.light_falloff,
         app.groups.len() as u32,
         (app.opaque_mesh.indices.len() / 3) as u32,
+        app.emissive_triangles.len() as u32,
     );
 
     if app.probes.len() > 0 {
@@ -565,7 +573,7 @@ fn start_bake(app: &mut Stilb) {
     println!(
         "Uploaded mesh Vertices: {} Triangles: {}",
         app.opaque_mesh.vertices.len() + app.transparent_mesh.vertices.len(),
-        app.opaque_mesh.indices.len() + app.transparent_mesh.indices.len(),
+        total_triangles,
     );
 
     let mesh::AccelerationStructureType::RayQuery(blas) = &app.gpu_mesh.acceleration_structure
@@ -631,7 +639,7 @@ fn bake_lightmaps(app: &mut Stilb) {
             unreachable!()
         };
 
-        update_bake_lights_shader(
+        update_bake_shader(
             &app.vk,
             &app.bake_shader,
             app.tlas.acceleration_structure(),
@@ -643,6 +651,7 @@ fn bake_lightmaps(app: &mut Stilb) {
             app.gpu_mesh.index_buffer.buffer,
             app.gpu_mesh.vertex_buffer.buffer,
             app.gpu_lights.buffer,
+            app.emissive_triangles_buffer.buffer,
         );
 
         let mut previous_time = std::time::Instant::now();
@@ -701,7 +710,7 @@ fn bake_lightmaps(app: &mut Stilb) {
                         unreachable!()
                     };
 
-                    update_bake_lights_shader(
+                    update_bake_shader(
                         &app.vk,
                         &app.bake_shader,
                         app.tlas.acceleration_structure(),
@@ -713,6 +722,7 @@ fn bake_lightmaps(app: &mut Stilb) {
                         app.gpu_mesh.index_buffer.buffer,
                         app.gpu_mesh.vertex_buffer.buffer,
                         app.gpu_lights.buffer,
+                        app.emissive_triangles_buffer.buffer,
                     );
 
                     continue;
@@ -757,7 +767,7 @@ fn bake_lightmaps(app: &mut Stilb) {
                 unreachable!()
             };
 
-            update_bake_lights_shader(
+            update_bake_shader(
                 &app.vk,
                 &app.bake_shader,
                 app.tlas.acceleration_structure(),
@@ -769,6 +779,7 @@ fn bake_lightmaps(app: &mut Stilb) {
                 app.gpu_mesh.index_buffer.buffer,
                 app.gpu_mesh.vertex_buffer.buffer,
                 app.gpu_lights.buffer,
+                app.emissive_triangles_buffer.buffer,
             );
 
             loop {
@@ -1380,6 +1391,105 @@ fn update_render_target(app: &mut Stilb, settings: &LightmapSettings, group_inde
     app.preview_initialized = false;
 }
 
+#[inline]
+fn edge_side(ax: f32, ay: f32, bx: f32, by: f32, px: f32, py: f32) -> f32 {
+    (px - ax) * (by - ay) - (py - ay) * (bx - ax)
+}
+
+fn extract_emissive_triangles(app: &mut Stilb) {
+    // todo indices of both opaque and transparent
+    let vertices = &app.opaque_mesh.vertices;
+    let indices = &app.opaque_mesh.indices;
+    let mut emissive_triangles = Vec::new();
+
+    for (primitive_id, chunk) in indices.chunks(3).enumerate() {
+        if chunk.len() < 3 {
+            break;
+        }
+
+        let v0 = &vertices[chunk[0] as usize];
+        let v1 = &vertices[chunk[1] as usize];
+        let v2 = &vertices[chunk[2] as usize];
+
+        let uv0 = v0.uv;
+        let uv1 = v1.uv;
+        let uv2 = v2.uv;
+
+        let group_index = (v0.flags & 0xFFFF) as usize;
+        let group = &app.groups[group_index];
+        let pixels = &group.emission_pixels;
+
+        let min_u = uv0.x.min(uv1.x).min(uv2.x).clamp(0.0, 1.0);
+        let max_u = uv0.x.max(uv1.x).max(uv2.x).clamp(0.0, 1.0);
+        let min_v = uv0.y.min(uv1.y).min(uv2.y).clamp(0.0, 1.0);
+        let max_v = uv0.y.max(uv1.y).max(uv2.y).clamp(0.0, 1.0);
+
+        let width = group.settings.width;
+        let height = group.settings.height;
+
+        let tex_w = width as f32;
+        let tex_h = height as f32;
+
+        let start_x = ((min_u * tex_w).floor() as u32).min(width - 1);
+        let end_x = ((max_u * tex_w).ceil() as u32).min(width - 1);
+        let start_y = ((min_v * tex_h).floor() as u32).min(height - 1);
+        let end_y = ((max_v * tex_h).ceil() as u32).min(height - 1);
+
+        let mut is_emissive = false;
+        'pixel_search: for y in start_y..=end_y {
+            for x in start_x..=end_x {
+                let p_u = (x as f32 + 0.5) / tex_w;
+                let p_v = (y as f32 + 0.5) / tex_h;
+
+                let w0 = edge_side(uv1.x, uv1.y, uv2.x, uv2.y, p_u, p_v);
+                let w1 = edge_side(uv2.x, uv2.y, uv0.x, uv0.y, p_u, p_v);
+                let w2 = edge_side(uv0.x, uv0.y, uv1.x, uv1.y, p_u, p_v);
+
+                let is_inside =
+                    (w0 >= 0.0 && w1 >= 0.0 && w2 >= 0.0) || (w0 <= 0.0 && w1 <= 0.0 && w2 <= 0.0);
+
+                if is_inside {
+                    let emissive_r = pixels[((y * width + x) * 4 + 0) as usize];
+                    let emissive_g = pixels[((y * width + x) * 4 + 1) as usize];
+                    let emissive_b = pixels[((y * width + x) * 4 + 2) as usize];
+
+                    if emissive_r > 0.0 || emissive_g > 0.0 || emissive_b > 0.0 {
+                        is_emissive = true;
+                        break 'pixel_search;
+                    }
+                }
+            }
+        }
+
+        if is_emissive {
+            emissive_triangles.push(primitive_id as u32);
+        }
+    }
+
+    println!("found {} emissive triangles", emissive_triangles.len());
+
+    if emissive_triangles.len() > 0 {
+        app.emissive_triangles_buffer = Buffer::new(
+            &app.vk,
+            &emissive_triangles,
+            vk::BufferUsageFlags::TRANSFER_DST
+                | vk::BufferUsageFlags::STORAGE_BUFFER
+                | vk::BufferUsageFlags::SHADER_DEVICE_ADDRESS,
+        );
+    } else {
+        let dummy = [0u32];
+        app.emissive_triangles_buffer = Buffer::new(
+            &app.vk,
+            &dummy,
+            vk::BufferUsageFlags::TRANSFER_DST
+                | vk::BufferUsageFlags::STORAGE_BUFFER
+                | vk::BufferUsageFlags::SHADER_DEVICE_ADDRESS,
+        );
+    }
+
+    app.emissive_triangles = emissive_triangles;
+}
+
 impl LightmapGroup {
     fn new(
         app: &mut Stilb,
@@ -1454,6 +1564,7 @@ impl LightmapGroup {
             settings,
             albedo,
             emission,
+            emission_pixels: emission_pixels.to_vec(),
         }
     }
 
@@ -1581,6 +1692,8 @@ impl Stilb {
             bake_probes_shader: ComputeShader::null(),
             push_probes,
             seams: Vec::new(),
+            emissive_triangles: Vec::new(),
+            emissive_triangles_buffer: Buffer::null(),
         }
     }
 }

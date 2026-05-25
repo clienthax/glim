@@ -68,10 +68,9 @@ mod tests {
         // let mut offset = 0.0;
         // for _ in 0..1 {
         // {
-        // add_mesh(app, "../meshes/monkey.glb").expect("failed to load mesh");
         add_mesh(
             app,
-            "../meshes/random.glb",
+            "../meshes/monkey.glb",
             false,
             false,
             Vector3::ZERO,
@@ -79,28 +78,38 @@ mod tests {
             false,
         )
         .expect("failed to load mesh");
-        // let (w, h, emission_pixels) = load_tga("../textures/emission_cute.tga").unwrap();
-        let w = 512;
-        let h = 512;
-        let emission_pixels = vec![0.0; (w * h * 4) as usize];
+        // add_mesh(
+        //     app,
+        //     "../meshes/random.glb",
+        //     false,
+        //     false,
+        //     Vector3::ZERO,
+        //     0,
+        //     false,
+        // )
+        // .expect("failed to load mesh");
+        let (w, h, emission_pixels) = load_tga_f32("../textures/emission_cute.tga").unwrap();
+        // let w = 512;
+        // let h = 512;
+        // let emission_pixels = vec![0.0; (w * h * 4) as usize];
         let albedo_pixels = vec![255; (w * h * 4) as usize];
         // }
 
-        app_add_light(
-            app,
-            Light {
-                ty: LightType::Point,
-                position: Vector3 {
-                    x: 0.0,
-                    y: 1.0,
-                    z: 0.0,
-                },
-                direction: Vector3::ZERO,
-                range: 5.0,
-                color: Vector3::new(1.0, 1.0, 1.0) * 3.0,
-                shadow_radius_or_angle: 0.1,
-            },
-        );
+        // app_add_light(
+        //     app,
+        //     Light {
+        //         ty: LightType::Point,
+        //         position: Vector3 {
+        //             x: 0.0,
+        //             y: 1.0,
+        //             z: 0.0,
+        //         },
+        //         direction: Vector3::ZERO,
+        //         range: 5.0,
+        //         color: Vector3::new(1.0, 1.0, 1.0) * 3.0,
+        //         shadow_radius_or_angle: 0.1,
+        //     },
+        // );
 
         //     offset += 5.0;
         //     for m in &mut mesh.vertices {

@@ -138,6 +138,25 @@ float3 RayOffset(float3 P, float3 Ng)
         abs(P.z) < origin ? P.z + floatScale * Ng.z : p_i.z);
 }
 
+float CalculateTriangleArea(uint primitiveID)
+{
+    uint i0 = Indices[primitiveID * 3 + 0];
+    uint i1 = Indices[primitiveID * 3 + 1];
+    uint i2 = Indices[primitiveID * 3 + 2];
+
+    float3 p0 = Vertices[i0].GetPosition();
+    float3 p1 = Vertices[i1].GetPosition();
+    float3 p2 = Vertices[i2].GetPosition();
+
+    float3 edge1 = p1 - p0;
+    float3 edge2 = p2 - p0;
+
+    float3 crossProduct = cross(edge1, edge2);
+    float area = 0.5f * length(crossProduct);
+
+    return area;
+}
+
 float2 Hammersley(uint i, uint N)
 {
     // radical inverse (Van der Corput) in base 2
