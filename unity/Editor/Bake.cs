@@ -46,6 +46,8 @@ namespace stilb
             _bakeProbesResults.AddRange(probes);
         }
 
+        static double _bakeStartTime = 0.0;
+
         static void PollBakeComplete()
         {
             if (!_isComplete)
@@ -60,7 +62,8 @@ namespace stilb
             }
             try
             {
-                Debug.Log("Bake Complete");
+                var now = Time.realtimeSinceStartupAsDouble;
+                Debug.Log($"Bake Complete in {now - _bakeStartTime}");
 
                 List<LightmapData> lightmapDatas = new();
 
@@ -247,6 +250,7 @@ namespace stilb
 
             _running = true;
 
+            _bakeStartTime = Time.realtimeSinceStartupAsDouble;
             var thread = new Thread(() =>
             {
                 try
