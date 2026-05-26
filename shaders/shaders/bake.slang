@@ -1,7 +1,7 @@
 #include "includes/core.slang"
 #include "includes/sobol_burley.slang"
 
-// #define MIS
+#define MIS
 
 [[vk::push_constant]]
 PushConstants Push;
