@@ -1,6 +1,8 @@
 #include "includes/core.slang"
 #include "includes/sobol_burley.slang"
 
+#define MIS
+
 [[vk::push_constant]]
 PushConstants Push;
 
@@ -20,7 +22,14 @@ float Luminance(float3 rgb)
     return dot(rgb, float3(0.2126, 0.7152, 0.0722));
 }
 
-void ShadeTriangleLight(inout Spectrum spectrum, uint primitiveID, Surface surface, float2 xi, float3 throughput, float pdf)
+float MISWeight(float pdf1, float pdf2)
+{
+    float p1 = pdf1 * pdf1;
+    float p2 = pdf2 * pdf2;
+    return p1 / (p1 + p2);
+}
+
+float3 ShadeTriangleLight(uint primitiveID, Surface surface, float2 xi, float3 throughput, float randomEmissiveTrianglePdf, out float pdf)
 {
     float r0 = sqrt(xi.x);
     float r1 = xi.y;
@@ -30,13 +39,14 @@ void ShadeTriangleLight(inout Spectrum spectrum, uint primitiveID, Surface surfa
 
     float3 lightColor = SampleEmission(emissiveSurface.uv, emissiveSurface.lightmapGroup).rgb / float.getPi();
 
-    if (!any(lightColor > 0.0f))
+    if (!any(lightColor > 0.0))
     {
-        return;
+        pdf = 0.0;
+        return 0.0;
     }
 
     float triangleArea = CalculateTriangleArea(primitiveID);
-    float pdfArea = pdf / triangleArea;
+    float pdfArea = randomEmissiveTrianglePdf / triangleArea;
 
     float3 L = emissiveSurface.P;
     float3 positionToLight = L - surface.P;
@@ -56,6 +66,12 @@ void ShadeTriangleLight(inout Spectrum spectrum, uint primitiveID, Surface surfa
         cosThetaLight = saturate(cosThetaLight);
     }
 
+    if (cosThetaLight <= 0.0001f)
+    {
+        pdf = 0.0;
+        return 0.0;
+    }
+
     float solidAngleWeight = cosThetaLight / (distanceSquare * pdfArea);
 
     float3 color = cosTheta * solidAngleWeight * lightColor * throughput;
@@ -73,7 +89,9 @@ void ShadeTriangleLight(inout Spectrum spectrum, uint primitiveID, Surface surfa
         }
     }
 
-    SpectrumAdd(spectrum, color, L);
+    pdf = pdfArea * distanceSquare / cosThetaLight;
+
+    return color;
 }
 
 void ShadeLight(inout Spectrum spectrum, Light light, Surface surface, float2 xi, float3 throughput)
@@ -172,11 +190,12 @@ void ShadeLight(inout Spectrum spectrum, Light light, Surface surface, float2 xi
     uint sampleCount = Push.maxSamples;
     uint bounceCount = Push.bounceCount;
     uint lightCount = Push.lightCount;
-    // todo set constant
 
+    // todo set constant
     // this is actually incorrect in cycles
     // uint sobolIndexMask = reversebits(NextPowerOfTwo(sampleCount - 1) - 1);
-    uint sobolIndexMask = NextPowerOfTwo(sampleCount - 1) - 1;
+    // uint sobolIndexMask = NextPowerOfTwo(sampleCount - 1) - 1;
+    uint sobolIndexMask = ~0u;
 
     // todo temp
     if (USE_CAMERA == 0)
@@ -222,7 +241,7 @@ void ShadeLight(inout Spectrum spectrum, Light light, Surface surface, float2 xi
 
     // direct light
     float2 xiLight = SobolBurleySample2D(indexing.x, dimension++, indexing.y, indexing.z);
-    float2 xiBounce0 = SobolBurleySample2D(indexing.x, dimension++, indexing.y, indexing.z);
+    float2 xiBounce = SobolBurleySample2D(indexing.x, dimension++, indexing.y, indexing.z);
 
     float sampleWeight = 1.0;
     // todo use t as weight for backface tolerance
@@ -233,33 +252,35 @@ void ShadeLight(inout Spectrum spectrum, Light light, Surface surface, float2 xi
         ShadeLight(spectrum, Lights[lightIndex], surface, xiLight, throughput);
     }
 
-    float emissivePdf = 1.0 / emissiveTriangleCount;
-
-    if (emissiveTriangleCount > 0)
-    {
-        uint emissivePrimitiveID = EmissiveTriangles[uint(xiBounce0.y * (float)emissiveTriangleCount)];
-        ShadeTriangleLight(spectrum, emissivePrimitiveID, surface, xiLight, throughput, emissivePdf);
-    }
+    float randomEmissiveTrianglePdf = 1.0 / emissiveTriangleCount;
 
     Ray bounceRay;
     bounceRay.P = RayOffset(surface.P, surface.Ng);
-    bounceRay.D = RandomDirectionInHemisphere(surface.N, xiBounce0);
+    bounceRay.D = RandomDirectionInHemisphere(surface.N, xiBounce);
     bounceRay.tMin = 0;
     bounceRay.tMax = RAY_MAX;
-    float cosTheta = saturate(dot(bounceRay.D, surface.N));
 
-    // todo:
-    // fix emission and light bounce count mismatch
-    // emissions have bounceCount-1 bounces
-
-    // bounces
     for (uint bounceIndex = 0; bounceIndex < bounceCount; bounceIndex++)
     {
+        float bsdfPdf = saturate(dot(bounceRay.D, surface.N)) / float.getPi();
+
+        float triangleLightPdf = 0.0;
+        float3 triangleLight = 0.0;
+        if (emissiveTriangleCount > 0)
+        {
+            float2 xiTriangle = SobolBurleySample2D(indexing.x, dimension++, indexing.y, indexing.z);
+            uint emissivePrimitiveID = EmissiveTriangles[uint(xiTriangle.x * (float)emissiveTriangleCount)];
+            triangleLight = ShadeTriangleLight(emissivePrimitiveID, surface, xiLight, throughput, randomEmissiveTrianglePdf, triangleLightPdf);
+            SpectrumAdd(spectrum, triangleLight * MISWeight(triangleLightPdf, bsdfPdf), 0);
+        }
+
+        bool hitEmissive = false;
         Hit bounceHit;
         if (TraceRay(bounceRay, bounceHit))
         {
-            Surface surfaceBounce = Surface::Get(bounceHit.primitiveID, bounceHit.bary);
-            bool backfaceGI = surfaceBounce.backfaceGI;
+            Surface previousSurface = surface;
+            surface = Surface::Get(bounceHit.primitiveID, bounceHit.bary);
+            bool backfaceGI = surface.backfaceGI;
 
             if (!bounceHit.frontFace)
             {
@@ -272,32 +293,43 @@ void ShadeLight(inout Spectrum spectrum, Light light, Surface surface, float2 xi
                     break;
                 }
 
-                surfaceBounce.N = -surfaceBounce.N;
-                surfaceBounce.Ng = -surfaceBounce.Ng;
+                surface.N = -surface.N;
+                surface.Ng = -surface.Ng;
             }
 
-            float3 bounceEmission = SampleEmission(surfaceBounce.uv, surfaceBounce.lightmapGroup).rgb;
-            float3 bounceAlbedo = SampleAlbedo(surfaceBounce.uv, surfaceBounce.lightmapGroup).rgb;
+            float3 bounceAlbedo = SampleAlbedo(surface.uv, surface.lightmapGroup).rgb;
 
-            SpectrumAdd(spectrum, bounceEmission * throughput, bounceRay.D);
-            float2 xiLight = SobolBurleySample2D(indexing.x, dimension++, indexing.y, indexing.z);
-            float2 xiBounce = SobolBurleySample2D(indexing.x, dimension++, indexing.y, indexing.z);
+            xiLight = SobolBurleySample2D(indexing.x, dimension++, indexing.y, indexing.z);
+            xiBounce = SobolBurleySample2D(indexing.x, dimension++, indexing.y, indexing.z);
 
+            float3 bounceEmission = SampleEmission(surface.uv, surface.lightmapGroup).rgb;
             if (emissiveTriangleCount > 0)
             {
-                uint emissivePrimitiveID = EmissiveTriangles[uint(xiBounce.x * (float)emissiveTriangleCount)];
-                ShadeTriangleLight(spectrum, emissivePrimitiveID, surfaceBounce, xiLight, throughput, emissivePdf);
+                if (any(bounceEmission > 0.0))
+                {
+                    hitEmissive = true;
+#ifdef MIS
+                    float triangleArea = CalculateTriangleArea(bounceHit.primitiveID);
+                    float3 positionToLight = surface.P - previousSurface.P;
+                    float distSq = dot(positionToLight, positionToLight);
+                    float cosThetaLight = saturate(dot(-normalize(positionToLight), surface.N));
+                    float hypotheticalLightPdf = (randomEmissiveTrianglePdf / triangleArea) * distSq / cosThetaLight;
+                    SpectrumAdd(spectrum, bounceEmission * throughput * MISWeight(bsdfPdf, hypotheticalLightPdf), 0);
+#else
+                    SpectrumAdd(spectrum, bounceEmission * throughput, 0);
+#endif
+                }
             }
 
             throughput *= bounceAlbedo;
 
             for (uint lightIndex = 0; lightIndex < lightCount; lightIndex++)
             {
-                ShadeLight(spectrum, Lights[lightIndex], surfaceBounce, xiLight, throughput);
+                ShadeLight(spectrum, Lights[lightIndex], surface, xiLight, throughput);
             }
 
-            bounceRay.P = RayOffset(surfaceBounce.P, surfaceBounce.Ng);
-            bounceRay.D = RandomDirectionInHemisphere(surfaceBounce.N, xiBounce);
+            bounceRay.P = RayOffset(surface.P, surface.Ng);
+            bounceRay.D = RandomDirectionInHemisphere(surface.N, xiBounce);
         }
         else
         {

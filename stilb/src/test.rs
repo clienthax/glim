@@ -1,5 +1,7 @@
 #[cfg(test)]
 mod tests {
+    use std::f32;
+
     use crate::bindings::*;
     use crate::bmp::save_bmp;
     use crate::lights::LightType;
@@ -51,16 +53,28 @@ mod tests {
     }
 
     fn test_render(mut config: StilbConfig, test_probes: bool) {
-        config.camera_forward = Vector3 {
-            x: -0.42446527,
-            y: -0.4595601,
-            z: -0.7801498,
-        };
+        // config.camera_forward = Vector3 {
+        //     x: -0.42446527,
+        //     y: -0.4595601,
+        //     z: -0.7801498,
+        // };
 
+        // config.camera_position = Vector3 {
+        //     x: 1.890761,
+        //     y: 0.4439021,
+        //     z: 1.685063,
+        // };
+
+        // noisy
         config.camera_position = Vector3 {
-            x: 1.890761,
-            y: 0.4439021,
-            z: 1.685063,
+            x: 1.829,
+            y: 1.11498,
+            z: 0.195829,
+        };
+        config.camera_forward = Vector3 {
+            x: -0.8777,
+            y: -0.4029,
+            z: 0.2595,
         };
 
         let app = app_new(config);
@@ -68,16 +82,16 @@ mod tests {
         // let mut offset = 0.0;
         // for _ in 0..1 {
         // {
-        add_mesh(
-            app,
-            "../meshes/monkey.glb",
-            false,
-            false,
-            Vector3::ZERO,
-            0,
-            false,
-        )
-        .expect("failed to load mesh");
+        // add_mesh(
+        //     app,
+        //     "../meshes/monkey.glb",
+        //     false,
+        //     false,
+        //     Vector3::ZERO,
+        //     0,
+        //     false,
+        // )
+        // .expect("failed to load mesh");
         // add_mesh(
         //     app,
         //     "../meshes/random.glb",
@@ -89,12 +103,12 @@ mod tests {
         // )
         // .expect("failed to load mesh");
         // let (w, h, emission_pixels) = load_tga_f32("../textures/emission_cute.tga").unwrap();
-        let (w, h, emission_pixels) =
-            load_tga_f32("../textures/emission_cute_wall_only.tga").unwrap();
+        // let (w, h, emission_pixels) =
+        //     load_tga_f32("../textures/emission_cute_wall_only.tga").unwrap();
         // let w = 512;
         // let h = 512;
         // let emission_pixels = vec![0.0; (w * h * 4) as usize];
-        let albedo_pixels = vec![255; (w * h * 4) as usize];
+        // let albedo_pixels = vec![255; (w * h * 4) as usize];
         // }
 
         // app_add_light(
@@ -151,38 +165,72 @@ mod tests {
         //     },
         // );
 
+        // let settings = LightmapSettings {
+        //     width: w,
+        //     height: h,
+        //     bounce_count: 5,
+        //     max_samples: 2048,
+        //     denoise: true,
+        //     dilate: true,
+        //     fix_seams: false,
+        // };
+
+        // app_add_lightmap_group(
+        //     app,
+        //     settings.clone(),
+        //     albedo_pixels.as_ptr(),
+        //     albedo_pixels.len() as u32,
+        //     emission_pixels.as_ptr(),
+        //     emission_pixels.len() as u32,
+        // );
+
+        // flower
+        // add_mesh(
+        //     app,
+        //     "../meshes/flower.glb",
+        //     true,
+        //     true,
+        //     Vector3::new(0.0, -1.05, 0.0),
+        //     1,
+        //     true,
+        // )
+        // .expect("failed to load mesh");
+        // let (w, h, albedo_pixels) = load_tga_u8("../textures/flower.tga").unwrap();
+        // let emission_pixels = vec![0.0; (w * h * 4) as usize];
+        // app_add_lightmap_group(
+        //     app,
+        //     settings,
+        //     albedo_pixels.as_ptr(),
+        //     albedo_pixels.len() as u32,
+        //     emission_pixels.as_ptr(),
+        //     emission_pixels.len() as u32,
+        // );
+
+        // noisy
+        add_mesh(
+            app,
+            "../meshes/noisy.glb",
+            false,
+            false,
+            Vector3::new(0.0, 0.0, 0.0),
+            0,
+            false,
+        )
+        .expect("failed to load mesh");
+        let (w, h, mut emission_pixels) = load_tga_f32("../textures/noisy.tga").unwrap();
+        for pixel in &mut emission_pixels {
+            *pixel *= f32::consts::PI;
+        }
+        let albedo_pixels = vec![255; (w * h * 4) as usize];
         let settings = LightmapSettings {
             width: w,
             height: h,
-            bounce_count: 5,
-            max_samples: 2048,
-            denoise: true,
-            dilate: true,
+            bounce_count: 4,
+            max_samples: 256,
+            denoise: false,
+            dilate: false,
             fix_seams: false,
         };
-
-        app_add_lightmap_group(
-            app,
-            settings.clone(),
-            albedo_pixels.as_ptr(),
-            albedo_pixels.len() as u32,
-            emission_pixels.as_ptr(),
-            emission_pixels.len() as u32,
-        );
-
-        // flower
-        add_mesh(
-            app,
-            "../meshes/flower.glb",
-            true,
-            true,
-            Vector3::new(0.0, -1.05, 0.0),
-            1,
-            true,
-        )
-        .expect("failed to load mesh");
-        let (w, h, albedo_pixels) = load_tga_u8("../textures/flower.tga").unwrap();
-        let emission_pixels = vec![0.0; (w * h * 4) as usize];
         app_add_lightmap_group(
             app,
             settings,
