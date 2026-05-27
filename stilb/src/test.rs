@@ -4,6 +4,7 @@ mod tests {
 
     use crate::bindings::*;
     use crate::bmp::save_bmp;
+    use crate::lights::LightType;
     use crate::math::*;
     use crate::mesh::FfiMesh;
     use crate::*;
@@ -149,6 +150,22 @@ mod tests {
         //     },
         // );
 
+        app_add_light(
+            app,
+            Light {
+                ty: LightType::Point,
+                position: Vector3 {
+                    x: 0.5,
+                    y: 0.3,
+                    z: -0.5,
+                },
+                direction: Vector3::ZERO,
+                range: 5.0,
+                color: Vector3::new(1.0, 1.0, 1.0),
+                shadow_radius_or_angle: 0.0,
+            },
+        );
+
         // app_add_light(
         //     app,
         //     Light {
@@ -221,6 +238,8 @@ mod tests {
         for pixel in &mut emission_pixels {
             *pixel *= f32::consts::PI;
         }
+        let emission_pixels = vec![0.0; (w * h * 4) as usize];
+
         let albedo_pixels = vec![255; (w * h * 4) as usize];
         let settings = LightmapSettings {
             width: w,

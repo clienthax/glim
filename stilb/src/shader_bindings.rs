@@ -115,3 +115,13 @@ pub fn bind_emissive_triangles(bindings: &mut Vec<vk::DescriptorSetLayoutBinding
         ..Default::default()
     });
 }
+
+pub fn bind_previous_bounce(bindings: &mut Vec<vk::DescriptorSetLayoutBinding<'_>>) {
+    bindings.push(vk::DescriptorSetLayoutBinding {
+        binding: 13,
+        descriptor_type: vk::DescriptorType::STORAGE_IMAGE,
+        descriptor_count: 1,
+        stage_flags: vk::ShaderStageFlags::COMPUTE,
+        ..Default::default()
+    });
+}
