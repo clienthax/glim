@@ -30,7 +30,6 @@ struct PushConstants
     }
 
     Spectrum spectrum = SpectrumZero();
-    float3 throughput = float3(1.0);
 
     float4 visibility = VisibilityBuffer[coords];
 
@@ -84,18 +83,16 @@ struct PushConstants
         }
 
         float3 bounceAlbedo = SampleAlbedo(surface.uv, surface.lightmapGroup).rgb;
-        float3 bounceEmission = SampleEmission(surface.uv, surface.lightmapGroup).rgb;
-        if (bounceIndex > 0)
+        if (bounceIndex == 0)
         {
-            bounceEmission = 0;
+            float3 bounceEmission = SampleEmission(surface.uv, surface.lightmapGroup).rgb;
+            SpectrumAdd(spectrum, bounceEmission, 0);
         }
 
         uint2 coords = uint2(float2(surface.uv.x, 1.0 - surface.uv.y) * resolution);
         float3 previousBounce = PreviousBounce[coords].rgb;
 
-        SpectrumAdd(spectrum, (bounceEmission + previousBounce) * throughput, 0);
-
-        throughput *= bounceAlbedo;
+        SpectrumAdd(spectrum, previousBounce * bounceAlbedo, 0);
     }
 
     AccumulateColor(LightmapDiffuse, coords, sampleIndex, float4(spectrum.color, 1.0));
