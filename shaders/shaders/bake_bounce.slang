@@ -40,7 +40,6 @@ struct PushConstants
     {
         return;
     }
-    uint emissiveTriangleCount = EMISSIVE_TRIANGLES_COUNT;
 
     uint primitiveID = asuint(visibility.z);
     float2 bary = visibility.xy;

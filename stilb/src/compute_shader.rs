@@ -467,8 +467,6 @@ pub fn load_bake_bounce_shader(
     bind_sampler(&mut bindings);
     bind_indices(&mut bindings);
     bind_vertices(&mut bindings);
-    bind_lights(&mut bindings);
-    bind_emissive_triangles(&mut bindings);
     bind_previous_bounce(&mut bindings);
 
     let map_entries = create_specialization_map_entries();
@@ -1030,7 +1028,6 @@ pub fn update_bake_bounce_shader(
     sampler: vk::Sampler,
     indices: vk::Buffer,
     vertices: vk::Buffer,
-    lights: vk::Buffer,
 ) {
     let mut descriptor_writes = Vec::new();
 
@@ -1152,21 +1149,6 @@ pub fn update_bake_bounce_shader(
     let mut write = vk::WriteDescriptorSet {
         dst_set: shader.descriptor_set,
         dst_binding: 9,
-        descriptor_type: vk::DescriptorType::STORAGE_BUFFER,
-        ..Default::default()
-    };
-    write = write.buffer_info(&info);
-    descriptor_writes.push(write);
-
-    // Lights
-    let info = [vk::DescriptorBufferInfo {
-        buffer: lights,
-        offset: 0,
-        range: vk::WHOLE_SIZE,
-    }];
-    let mut write = vk::WriteDescriptorSet {
-        dst_set: shader.descriptor_set,
-        dst_binding: 10,
         descriptor_type: vk::DescriptorType::STORAGE_BUFFER,
         ..Default::default()
     };
