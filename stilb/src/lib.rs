@@ -91,14 +91,14 @@ impl Drop for Stilb {
             group.destroy(&self.vk);
         }
 
-        if let RenderTarget::NonDirectional {
-            visibility,
-            diffuse,
-        } = &mut self.render_target
-        {
-            visibility.destroy(&self.vk);
-            diffuse.destroy(&self.vk);
-        };
+        let rt = &mut self.render_target;
+
+        if !rt.visibility.image().is_null() {
+            rt.visibility.destroy(&self.vk);
+        }
+        if !rt.diffuse.image().is_null() {
+            rt.diffuse.destroy(&self.vk);
+        }
 
         if !self.preview_shader.pipeline.is_null() {
             self.preview_shader.destroy(&self.vk);
@@ -127,12 +127,9 @@ impl Drop for Stilb {
     }
 }
 
-pub enum RenderTarget {
-    NonDirectional {
-        visibility: Texture2D,
-        diffuse: Texture2D,
-    },
-    None,
+pub struct RenderTarget {
+    visibility: Texture2D,
+    diffuse: Texture2D,
 }
 
 pub struct LightmapGroup {
@@ -348,13 +345,7 @@ fn update_visibility_from_camera(app: &mut Stilb, cmd: vk::CommandBuffer) {
 
     let constants_bytes = as_bytes(&push);
 
-    let RenderTarget::NonDirectional {
-        visibility,
-        diffuse: _,
-    } = &mut app.render_target
-    else {
-        unreachable!()
-    };
+    let visibility = &mut app.render_target.visibility;
 
     unsafe {
         if visibility.layout() != vk::ImageLayout::GENERAL {
@@ -649,13 +640,8 @@ fn render_preview(app: &mut Stilb) {
 
     update_render_target(app, &preview_settings, 0);
 
-    let RenderTarget::NonDirectional {
-        visibility,
-        diffuse,
-    } = &mut app.render_target
-    else {
-        unreachable!()
-    };
+    let visibility = &mut app.render_target.visibility;
+    let diffuse = &mut app.render_target.diffuse;
 
     update_preview_shader(
         &app.vk,
@@ -720,13 +706,9 @@ fn render_preview(app: &mut Stilb) {
                 app.config.preview_settings.height = app.vk.swapchain.extent.height;
 
                 update_render_target(app, &preview_settings, 0);
-                let RenderTarget::NonDirectional {
-                    visibility,
-                    diffuse,
-                } = &mut app.render_target
-                else {
-                    unreachable!()
-                };
+
+                let diffuse = &mut app.render_target.diffuse;
+                let visibility = &mut app.render_target.visibility;
 
                 update_preview_shader(
                     &app.vk,
@@ -820,13 +802,8 @@ fn render_lightmaps(app: &mut Stilb) {
 
         update_render_target(app, &settings, 0);
 
-        let RenderTarget::NonDirectional {
-            visibility,
-            diffuse,
-        } = &mut app.render_target
-        else {
-            unreachable!()
-        };
+        let visibility = &mut app.render_target.visibility;
+        let diffuse = &mut app.render_target.diffuse;
 
         let shader = &bake_direct_shader;
 
@@ -960,13 +937,8 @@ fn render_lightmaps(app: &mut Stilb) {
 
             update_render_target(app, &settings, 0);
 
-            let RenderTarget::NonDirectional {
-                visibility,
-                diffuse,
-            } = &mut app.render_target
-            else {
-                unreachable!()
-            };
+            let visibility = &mut app.render_target.visibility;
+            let diffuse = &mut app.render_target.diffuse;
 
             let shader = &bake_bounce_shader;
 
@@ -1868,26 +1840,14 @@ fn render_sample_camera(app: &mut Stilb, settings: &LightmapSettings) -> bool {
                 float32: [0.0, 0.0, 0.0, 0.0],
             };
 
-            let RenderTarget::NonDirectional {
-                visibility: _,
-                diffuse,
-            } = &mut app.render_target
-            else {
-                unreachable!()
-            };
+            let diffuse = &mut app.render_target.diffuse;
 
             clear_texture(&app.vk, diffuse, cmd, clear);
         }
 
         let vk = &app.vk.device;
 
-        let RenderTarget::NonDirectional {
-            visibility,
-            diffuse,
-        } = &mut app.render_target
-        else {
-            unreachable!()
-        };
+        let diffuse = &mut app.render_target.diffuse;
 
         let barrier = diffuse.barrier(
             vk::ImageLayout::GENERAL,
@@ -2074,18 +2034,16 @@ fn render_sample_camera(app: &mut Stilb, settings: &LightmapSettings) -> bool {
 }
 
 fn update_render_target(app: &mut Stilb, settings: &LightmapSettings, group_index: u32) {
-    if let RenderTarget::NonDirectional {
-        visibility,
-        diffuse,
-    } = &mut app.render_target
-    {
-        if !visibility.image().is_null() {
-            visibility.destroy(&app.vk);
-        }
-        if !diffuse.image().is_null() {
-            diffuse.destroy(&app.vk);
-        }
-    };
+    let diffuse = &mut app.render_target.diffuse;
+    let visibility = &mut app.render_target.visibility;
+
+    if !diffuse.image().is_null() {
+        diffuse.destroy(&app.vk);
+    }
+
+    if !visibility.image().is_null() {
+        visibility.destroy(&app.vk);
+    }
 
     let (width, height) = if app.config.is_preview {
         (
@@ -2115,10 +2073,8 @@ fn update_render_target(app: &mut Stilb, settings: &LightmapSettings, group_inde
     println!("visibility: {:#x}", visibility.image().as_raw());
     println!("diffuse: {:#x}", diffuse.image().as_raw());
 
-    app.render_target = RenderTarget::NonDirectional {
-        visibility,
-        diffuse,
-    };
+    app.render_target.visibility = visibility;
+    app.render_target.diffuse = diffuse;
 
     initialize_bake_push_constants(
         app,
@@ -2403,6 +2359,11 @@ impl Stilb {
             indices: Vec::new(),
         };
 
+        let render_target = RenderTarget {
+            visibility: Texture2D::null(),
+            diffuse: Texture2D::null(),
+        };
+
         Self {
             vk,
             opaque_mesh,
@@ -2420,7 +2381,7 @@ impl Stilb {
             gpu_lights,
             texture_sampler,
             preview_push_constants,
-            render_target: RenderTarget::None,
+            render_target,
             probes: Vec::new(),
             probes_buffer: Buffer::null(),
             bake_probes_shader: ComputeShader::null(),

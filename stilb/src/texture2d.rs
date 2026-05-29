@@ -114,17 +114,23 @@ impl Texture2D {
     }
 
     pub fn destroy(&mut self, vk: &VulkanContext) {
-        assert!(!self.image.is_null());
-        assert!(!self.view.is_null());
-        assert!(!self.memory.is_null());
+        debug_assert!(!self.image.is_null());
+        debug_assert!(!self.view.is_null());
+        debug_assert!(!self.memory.is_null());
 
         unsafe {
-            vk.device.destroy_image_view(self.view, None);
-            vk.device.free_memory(self.memory, None);
-            vk.device.destroy_image(self.image, None);
-        };
+            if !self.view().is_null() {
+                vk.device.destroy_image_view(self.view, None);
+            }
+            if !self.memory().is_null() {
+                vk.device.free_memory(self.memory, None);
+                unregister_alloc(self.bytes);
+            }
 
-        unregister_alloc(self.bytes);
+            if !self.image.is_null() {
+                vk.device.destroy_image(self.image, None);
+            }
+        };
 
         self.view = vk::ImageView::null();
         self.memory = vk::DeviceMemory::null();
@@ -361,6 +367,19 @@ impl Texture2D {
         self.layout = new_layout;
 
         barrier
+    }
+
+    pub fn null() -> Self {
+        Self {
+            format: vk::Format::UNDEFINED,
+            width: 0,
+            height: 0,
+            layout: vk::ImageLayout::UNDEFINED,
+            image: vk::Image::null(),
+            memory: vk::DeviceMemory::null(),
+            view: vk::ImageView::null(),
+            bytes: 0,
+        }
     }
 
     pub fn layout(&self) -> vk::ImageLayout {
