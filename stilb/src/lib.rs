@@ -770,6 +770,20 @@ fn render_lightmaps(app: &mut Stilb) {
 
     let any_denoise = app.groups.iter().any(|x| x.settings.denoise);
 
+    let max_width = app.groups.iter().map(|x| x.settings.width).max().unwrap();
+    let max_height = app.groups.iter().map(|x| x.settings.height).max().unwrap();
+
+    let staging_width = max_width.min(1024) as u64;
+    let staging_height = max_height.min(1024) as u64;
+
+    let mut staging = Buffer::empty(
+        &app.vk,
+        String::from("Staging Buffer"),
+        staging_width * staging_height * 4 * std::mem::size_of::<f32>() as u64 as vk::DeviceSize, // 16 MB // todo maybe clamp to max group size
+        vk::BufferUsageFlags::TRANSFER_DST | vk::BufferUsageFlags::TRANSFER_SRC,
+        vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT,
+    );
+
     let oidn = if any_denoise {
         Some(Oidn::load().expect("failed to load oidn"))
     } else {
@@ -948,7 +962,7 @@ fn render_lightmaps(app: &mut Stilb) {
             copy_image(&app.vk, diffuse, &mut previous_diffuses[i]);
         }
 
-        diffuse.read_pixels(&app.vk, &mut app.groups[i].lightmap_diffuse_final);
+        diffuse.read_pixels(&app.vk, &mut app.groups[i].lightmap_diffuse_final, &staging);
     }
 
     bake_direct_shader.destroy(&app.vk);
@@ -1090,7 +1104,11 @@ fn render_lightmaps(app: &mut Stilb) {
 
             unsafe { app.vk.device.queue_wait_idle(app.vk.compute_queue).unwrap() }
 
-            diffuse.read_pixels(&app.vk, &mut app.groups[i].lightmap_diffuse_previous_bounce);
+            diffuse.read_pixels(
+                &app.vk,
+                &mut app.groups[i].lightmap_diffuse_previous_bounce,
+                &staging,
+            );
 
             let group = &mut app.groups[i];
             let src = &group.lightmap_diffuse_previous_bounce;
@@ -1113,6 +1131,7 @@ fn render_lightmaps(app: &mut Stilb) {
     }
 
     bake_bounce_shader.destroy(&app.vk);
+    staging.destroy(&app.vk);
 
     for tex in &mut previous_diffuses {
         tex.destroy(&app.vk);

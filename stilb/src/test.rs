@@ -37,8 +37,8 @@ mod tests {
             light_falloff: LightFalloffType::InverseSquare,
             vulkan_validation_layers: true,
             seams_debug: false,
-            direct_samples: 32,
-            indirect_samples: 32,
+            direct_samples: 64,
+            indirect_samples: 64,
             bounce_count: 1,
             log_callback: log_callback,
             mis: false,
@@ -245,6 +245,8 @@ mod tests {
         for pixel in &mut emission_pixels {
             *pixel *= f32::consts::PI;
         }
+        // let w = 256;
+        // let h = 256;
         // let emission_pixels = vec![0.0; (w * h * 4) as usize];
 
         let albedo_pixels = vec![255; (w * h * 4) as usize];
@@ -409,6 +411,9 @@ mod tests {
         let pixels = unsafe { std::slice::from_raw_parts(data.pixels, data.pixels_count as usize) };
 
         let file_name = format!("../temp/diffuse_lightmap{}.exr", data.group_index);
+
+        println!("saving lightmap {}", file_name);
+
         save_exr_f32(&pixels, data.width, data.height, 4, file_name.as_str());
     }
 

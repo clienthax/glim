@@ -1,11 +1,9 @@
+use crate::{buffer::Buffer, vulkan_context::VulkanContext};
+use ash::vk::{self, Handle};
 use std::{
     ptr, slice,
     sync::atomic::{AtomicU64, Ordering},
 };
-
-use ash::vk::{self, Handle};
-
-use crate::{buffer::Buffer, vulkan_context::VulkanContext};
 
 pub struct Texture2D {
     format: vk::Format,
@@ -18,7 +16,7 @@ pub struct Texture2D {
     view: vk::ImageView,
 
     bytes: u64,
-    name: String,
+    pub name: String,
 }
 
 static ALLOCATED_GPU_MEMORY: AtomicU64 = AtomicU64::new(0);
@@ -152,15 +150,19 @@ impl Texture2D {
 
     fn get_device_size(&self) -> vk::DeviceSize {
         let res = (self.width * self.height) as u64;
-        let channels = 4u64;
+        let pixel_size = self.pixel_size();
 
+        res * pixel_size
+    }
+
+    fn pixel_size(&self) -> u64 {
+        let channels = 4u64;
         let size = match self.format() {
             vk::Format::R32G32B32A32_SFLOAT => std::mem::size_of::<f32>(),
             vk::Format::R8G8B8A8_UNORM => std::mem::size_of::<u8>(),
             _ => unreachable!(),
         } as u64;
-
-        res * channels * size
+        size * channels
     }
 
     // only 4 channel f32 or u8 textures
@@ -291,90 +293,178 @@ impl Texture2D {
     //     self.read_pixels_with(vk, &mut logic);
     // }
 
-    pub fn read_pixels(&mut self, vk: &VulkanContext, dst: &mut Vec<f32>) {
+    pub fn read_pixels(&mut self, vk: &VulkanContext, dst: &mut Vec<f32>, staging: &Buffer) {
         let start_time = std::time::Instant::now();
 
-        let size = self.get_device_size();
+        let staging_buffer = staging.buffer;
+        let staging_memory = staging.memory;
 
-        let (staging_buffer, staging_memory, _) = vk.create_buffer(
-            size,
-            vk::BufferUsageFlags::TRANSFER_DST,
-            vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT,
-        );
-
-        let cmd = vk.begin_single_use_cmd();
-
-        let previous_layout = self.layout();
-
-        if previous_layout != vk::ImageLayout::TRANSFER_SRC_OPTIMAL {
-            let barrier = self.barrier(
-                vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
-                vk::AccessFlags::SHADER_WRITE,
-                vk::AccessFlags::TRANSFER_READ,
-            );
-
-            unsafe {
-                vk.device.cmd_pipeline_barrier(
-                    cmd,
-                    vk::PipelineStageFlags::COMPUTE_SHADER,
-                    vk::PipelineStageFlags::TRANSFER,
-                    vk::DependencyFlags::empty(),
-                    &[],
-                    &[],
-                    &[barrier],
-                )
-            };
-        }
-
-        let image_subresource = vk::ImageSubresourceLayers {
-            aspect_mask: vk::ImageAspectFlags::COLOR,
-            mip_level: 0,
-            base_array_layer: 0,
-            layer_count: 1,
-        };
-
-        let image_extent = vk::Extent3D {
-            width: self.width,
-            height: self.height,
-            depth: 1,
-        };
-
-        let region = vk::BufferImageCopy {
-            image_subresource,
-            image_extent,
-            ..Default::default()
-        };
-
-        unsafe {
-            vk.device.cmd_copy_image_to_buffer(
-                cmd,
-                self.image,
-                vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
-                staging_buffer,
-                &[region],
-            )
-        };
-
-        vk.end_single_use_cmd(cmd);
+        dst.clear();
+        dst.reserve((self.width * self.height * 4) as usize);
 
         let ptr = unsafe {
             vk.device
-                .map_memory(staging_memory, 0, size, vk::MemoryMapFlags::empty())
+                .map_memory(
+                    staging_memory,
+                    0,
+                    vk::WHOLE_SIZE,
+                    vk::MemoryMapFlags::empty(),
+                )
                 .unwrap()
         } as *mut f32;
 
-        let pixel_count = (self.width * self.height * 4) as usize;
+        let bytes_per_row = (self.width * self.pixel_size() as u32) as vk::DeviceSize;
+        let rows_per_chunk = (staging.bytes / bytes_per_row) as u32;
 
-        unsafe {
-            let slice = slice::from_raw_parts(ptr, pixel_count);
-            dst.clear();
-            dst.extend(slice);
+        assert!(
+            rows_per_chunk > 0,
+            "Image width is too large! A single row ({:.2} MiB) exceeds the staging buffer limit ({:.2} MiB).",
+            bytes_per_row as f64 / (1024.0 * 1024.0),
+            staging.bytes as f64 / (1024.0 * 1024.0)
+        );
+
+        // for chunk_index in 0..copy_chunks {
+        //     let y_offset = chunk_index * chunk_height;
+
+        //     let cmd = vk.begin_single_use_cmd();
+
+        //     let previous_layout = self.layout();
+
+        //     if previous_layout != vk::ImageLayout::TRANSFER_SRC_OPTIMAL {
+        //         let barrier = self.barrier(
+        //             vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
+        //             vk::AccessFlags::SHADER_WRITE,
+        //             vk::AccessFlags::TRANSFER_READ,
+        //         );
+
+        //         unsafe {
+        //             vk.device.cmd_pipeline_barrier(
+        //                 cmd,
+        //                 vk::PipelineStageFlags::COMPUTE_SHADER,
+        //                 vk::PipelineStageFlags::TRANSFER,
+        //                 vk::DependencyFlags::empty(),
+        //                 &[],
+        //                 &[],
+        //                 &[barrier],
+        //             )
+        //         };
+        //     }
+
+        //     let image_subresource = vk::ImageSubresourceLayers {
+        //         aspect_mask: vk::ImageAspectFlags::COLOR,
+        //         mip_level: 0,
+        //         base_array_layer: 0,
+        //         layer_count: 1,
+        //     };
+
+        //     let region = vk::BufferImageCopy {
+        //         buffer_offset: 0,
+        //         buffer_row_length: 0,
+        //         buffer_image_height: 0,
+        //         image_subresource,
+        //         image_offset: vk::Offset3D {
+        //             x: 0,
+        //             y: y_offset as i32,
+        //             z: 0,
+        //         },
+        //         image_extent: vk::Extent3D {
+        //             width: self.width,
+        //             height: chunk_height,
+        //             depth: 1,
+        //         },
+        //     };
+
+        //     unsafe {
+        //         vk.device.cmd_copy_image_to_buffer(
+        //             cmd,
+        //             self.image,
+        //             vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
+        //             staging_buffer,
+        //             &[region],
+        //         )
+        //     };
+
+        //     vk.end_single_use_cmd(cmd);
+
+        //     unsafe {
+        //         let chunk_slice = slice::from_raw_parts(ptr, chunk_pixel_count);
+        //         dst.extend_from_slice(chunk_slice);
+        //     }
+        // }
+
+        let mut current_y = 0;
+
+        while current_y < self.height {
+            let current_chunk_height = std::cmp::min(rows_per_chunk, self.height - current_y);
+            let chunk_pixel_count = (self.width * current_chunk_height * 4) as usize;
+
+            let cmd = vk.begin_single_use_cmd();
+
+            if self.layout() != vk::ImageLayout::TRANSFER_SRC_OPTIMAL {
+                let barrier = self.barrier(
+                    vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
+                    vk::AccessFlags::SHADER_WRITE,
+                    vk::AccessFlags::TRANSFER_READ,
+                );
+
+                unsafe {
+                    vk.device.cmd_pipeline_barrier(
+                        cmd,
+                        vk::PipelineStageFlags::COMPUTE_SHADER,
+                        vk::PipelineStageFlags::TRANSFER,
+                        vk::DependencyFlags::empty(),
+                        &[],
+                        &[],
+                        &[barrier],
+                    )
+                };
+            }
+
+            let image_subresource = vk::ImageSubresourceLayers {
+                aspect_mask: vk::ImageAspectFlags::COLOR,
+                mip_level: 0,
+                base_array_layer: 0,
+                layer_count: 1,
+            };
+
+            let region = vk::BufferImageCopy {
+                buffer_offset: 0,
+                buffer_row_length: 0,
+                buffer_image_height: 0,
+                image_subresource,
+                image_offset: vk::Offset3D {
+                    x: 0,
+                    y: current_y as i32,
+                    z: 0,
+                },
+                image_extent: vk::Extent3D {
+                    width: self.width,
+                    height: current_chunk_height,
+                    depth: 1,
+                },
+            };
+
+            unsafe {
+                vk.device.cmd_copy_image_to_buffer(
+                    cmd,
+                    self.image,
+                    vk::ImageLayout::TRANSFER_SRC_OPTIMAL,
+                    staging_buffer,
+                    &[region],
+                )
+            };
+
+            vk.end_single_use_cmd(cmd);
+
+            unsafe {
+                let chunk_slice = slice::from_raw_parts(ptr, chunk_pixel_count);
+                dst.extend_from_slice(chunk_slice);
+            }
+
+            current_y += current_chunk_height;
         }
 
-        unsafe {
-            vk.device.destroy_buffer(staging_buffer, None);
-            vk.device.free_memory(staging_memory, None);
-        };
+        unsafe { vk.device.unmap_memory(staging_memory) };
 
         let now = std::time::Instant::now();
         let elapsed = now.duration_since(start_time).as_secs_f32();

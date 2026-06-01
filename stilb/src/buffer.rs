@@ -21,7 +21,7 @@ pub struct Buffer {
     pub memory: vk::DeviceMemory,
     pub address: vk::DeviceAddress,
 
-    bytes: u64,
+    pub bytes: u64,
     pub name: String,
 }
 
@@ -45,6 +45,24 @@ impl Buffer {
     ) -> Self {
         let size = (bytes.len() * std::mem::size_of::<T>()) as vk::DeviceSize;
 
+        let buffer = Buffer::empty(vk, name, size, usage, properties);
+
+        let (a, bytes, b) = unsafe { bytes.align_to::<u8>() };
+        assert!(a.len() == 0);
+        assert!(b.len() == 0);
+
+        vk.upload_buffer(bytes, buffer.buffer);
+
+        buffer
+    }
+
+    pub fn empty(
+        vk: &VulkanContext,
+        name: String,
+        size: vk::DeviceSize,
+        usage: vk::BufferUsageFlags,
+        properties: vk::MemoryPropertyFlags,
+    ) -> Self {
         let create_info = vk::BufferCreateInfo {
             size,
             usage,
@@ -78,14 +96,11 @@ impl Buffer {
             ..Default::default()
         };
 
-        let address = unsafe { vk.device.get_buffer_device_address(&info) };
-
-        let (a, bytes, b) = unsafe { bytes.align_to::<u8>() };
-
-        assert!(a.len() == 0);
-        assert!(b.len() == 0);
-
-        vk.upload_buffer(bytes, buffer);
+        let address = if properties.contains(vk::MemoryPropertyFlags::HOST_VISIBLE) {
+            0
+        } else {
+            unsafe { vk.device.get_buffer_device_address(&info) }
+        };
 
         let allocated = register_gpu_alloc(mem_reqs.size);
 
