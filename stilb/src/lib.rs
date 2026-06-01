@@ -836,7 +836,7 @@ fn render_lightmaps(app: &mut Stilb) {
     let progress_scale = 1.0 / progress_max as f32;
 
     for i in 0..app.groups.len() {
-        let message = format!("Rendering direct light for group {}", i);
+        let message = format!("Baking Direct (Group {}/{})", i + 1, app.groups.len());
 
         let group = &app.groups[i];
 
@@ -982,7 +982,13 @@ fn render_lightmaps(app: &mut Stilb) {
         let previous: Vec<vk::ImageView> = previous_diffuses.iter().map(|x| x.view()).collect();
 
         for i in 0..app.groups.len() {
-            let message = format!("Baking Bounce {} for Lightmap Group {}", bounce_index, i);
+            let message = format!(
+                "Baking Bounce {}/{} (Group {}/{})",
+                bounce_index + 1,
+                bounce_count,
+                i + 1,
+                app.groups.len(),
+            );
 
             let group = &app.groups[i];
 
