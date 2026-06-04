@@ -18,7 +18,7 @@ pub struct UVPacker {
     area: f64,
 }
 
-struct Chart {
+pub struct Chart {
     uvs: Vec<Vector2>,
     positions: Vec<Vector3>,
     indices: Vec<u32>,
@@ -27,6 +27,7 @@ struct Chart {
     mesh_id: usize,
 
     uv_area: f64,
+    bitmap: Bitmap,
 }
 
 impl Chart {
@@ -74,7 +75,11 @@ impl Chart {
             uv_area += d.abs() as f64;
         }
 
-        uv_area.sqrt()
+        uv_area
+    }
+
+    pub fn bitmap(&self) -> &Bitmap {
+        &self.bitmap
     }
 }
 
@@ -86,7 +91,7 @@ fn determinant(c: Vector2, c2: Vector2, c3: Vector2) -> f32 {
 }
 
 impl UVPacker {
-    fn new(width: u32, height: u32) -> Self {
+    pub fn new(width: u32, height: u32) -> Self {
         Self {
             charts: Vec::new(),
             width: width,
@@ -113,6 +118,7 @@ impl UVPacker {
             mesh_id,
             original_indices: indices.to_vec(),
             uv_area: 0.0,
+            bitmap: Bitmap::empty(),
         };
 
         // todo maybe offset uvs so theyre always positive
@@ -134,18 +140,23 @@ impl UVPacker {
 
         let total_area: f64 = self.charts.iter().map(|x| x.uv_area).sum();
 
-        let maximum_scale = self.area / total_area;
-
         // scale up to texel units
-        let scale_guess = (maximum_scale * 0.75) as f32;
+        let maximum_scale = (self.area / total_area).sqrt() as f32;
+        let scale_guess = maximum_scale * 0.75;
 
         for chart in &mut self.charts {
             chart.uvs.iter_mut().for_each(|uv| *uv *= scale_guess);
+
+            chart.bitmap = Bitmap::rasterize(chart);
         }
+    }
+
+    pub fn charts(&self) -> &[Chart] {
+        &self.charts
     }
 }
 
-struct Bitmap {
+pub struct Bitmap {
     width: u32,
     height: u32,
     pixels: Vec<u8>,
@@ -163,6 +174,8 @@ impl Bitmap {
 
         let width = max_x.ceil() as u32 + 1;
         let height = max_y.ceil() as u32 + 1;
+
+        println!("width {} height {}", width, height);
 
         let resolution = (width * height) as usize;
 
@@ -199,8 +212,17 @@ impl Bitmap {
 
         img.save(path).expect("failed to save bitmap");
     }
+
+    fn empty() -> Self {
+        Self {
+            width: 0,
+            height: 0,
+            pixels: Vec::new(),
+        }
+    }
 }
 
+#[inline(always)]
 fn rasterize_triangle_conservative(
     a: Vector2,
     b: Vector2,

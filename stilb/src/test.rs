@@ -11,6 +11,7 @@ mod tests {
     use crate::lights::LightType;
     use crate::math::*;
     use crate::mesh::FfiMesh;
+    use crate::pack::UVPacker;
     use crate::*;
 
     fn make_config() -> StilbConfig {
@@ -439,5 +440,73 @@ mod tests {
         let probes = unsafe { std::slice::from_raw_parts(data.probes, data.pixels_count as usize) };
 
         println!("Baked Probes:\n {:?}", &probes);
+    }
+
+    #[test]
+    fn test_uv_packer() -> std::io::Result<()> {
+        let path = "../meshes/noisy.glb";
+
+        let mut packer = UVPacker::new(512, 512);
+
+        let (document, buffers, _) =
+            gltf::import(path).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;
+
+        let flip_uv = false;
+        let scale_multiplier = 1.0;
+
+        let mut mesh_id = 0;
+        for mesh in document.meshes() {
+            for primitive in mesh.primitives() {
+                let mut positions = Vec::<Vector3>::new();
+                let mut uvs = Vec::<Vector2>::new();
+                let mut indices = Vec::<u32>::new();
+
+                let reader = primitive.reader(|buffer| Some(&buffers[buffer.index()].0));
+
+                if let Some(iter) = reader.read_positions() {
+                    for p in iter {
+                        let v = Vector3::new(p[0], p[1], p[2]);
+                        positions.push(v);
+                    }
+                }
+
+                if let Some(iter) = reader.read_tex_coords(1) {
+                    for uv in iter.into_f32() {
+                        if flip_uv {
+                            uvs.push(Vector2::new(uv[0], 1.0 - uv[1]));
+                        } else {
+                            uvs.push(Vector2::new(uv[0], uv[1]));
+                        }
+                    }
+                } else {
+                    if let Some(iter) = reader.read_tex_coords(0) {
+                        for uv in iter.into_f32() {
+                            if flip_uv {
+                                uvs.push(Vector2::new(uv[0], 1.0 - uv[1]));
+                            } else {
+                                uvs.push(Vector2::new(uv[0], uv[1]));
+                            }
+                        }
+                    }
+                }
+
+                if let Some(iter) = reader.read_indices() {
+                    indices.extend(iter.into_u32());
+                }
+
+                packer.add_mesh(&positions, &uvs, &indices, scale_multiplier, mesh_id);
+
+                mesh_id += 1;
+            }
+        }
+
+        packer.pack();
+
+        for (i, chart) in packer.charts().iter().enumerate() {
+            let file_name = format!("../temp/char{}.bmp", i);
+            chart.bitmap().save_bmp(&file_name);
+        }
+
+        Ok(())
     }
 }
