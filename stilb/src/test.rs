@@ -445,6 +445,7 @@ mod tests {
     #[test]
     fn test_uv_packer() -> std::io::Result<()> {
         let path = "../meshes/packuv.glb";
+        // let path = "../meshes/plane.glb";
 
         let mut packer = UVPacker::new(512, 512);
 

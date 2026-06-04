@@ -75,7 +75,7 @@ impl Chart {
             uv_area += d.abs() as f64;
         }
 
-        uv_area
+        uv_area * 0.5
     }
 
     pub fn bitmap(&self) -> &Bitmap {
