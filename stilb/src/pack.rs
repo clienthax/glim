@@ -33,6 +33,8 @@ pub struct Chart {
     pub uv_area: f64,
     pub bitmap: Bitmap,
 
+    pub chart_uv_min: Vector2,
+
     /// Texel-space top-left corner where this chart was placed.
     /// Set after a successful `pack()`.
     pub placed_offset: (u32, u32),
@@ -92,6 +94,7 @@ impl Chart {
         }
 
         let offset = Vector2::new(min_x, min_y);
+        self.chart_uv_min = offset;
         self.uvs.iter_mut().for_each(|uv| *uv -= offset);
     }
 
@@ -160,6 +163,7 @@ impl UVPacker {
             placed_offset: (0, 0),
             scale: 1.0,
             world_scale: 1.0,
+            chart_uv_min: Vector2::ZERO,
         };
 
         chart.offset_uvs();
@@ -272,10 +276,12 @@ impl UVPacker {
             chart.scale * chart.world_scale / self.height as f32,
         );
 
-        let offset = Vector2::new(
+        let atlas_offset = Vector2::new(
             chart.placed_offset.0 as f32 / self.width as f32,
             chart.placed_offset.1 as f32 / self.height as f32,
         );
+
+        let offset = atlas_offset - chart.chart_uv_min * scale;
 
         (scale, offset)
     }

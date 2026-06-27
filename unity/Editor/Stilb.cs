@@ -275,7 +275,6 @@ namespace stilb
 
                         var so = UVPacking.uvpacker_get_scale_offset(packer, (uint)rendererIndex);
                         r.lightmapScaleOffset = so;
-                        Debug.Log(so);
                         EditorUtility.SetDirty(r);
                     }
 
