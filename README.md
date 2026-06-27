@@ -2,8 +2,9 @@
 
 ## Features
 - [x] UV Packing
-  - [ ] Scale offset
+  - [x] Scale offset
   - [ ] Per chart
+  - [ ] Padding
 - [ ] Bake lightprobes with new shader
 - [ ] Directional lightmaps
 - [ ] Terrain Support

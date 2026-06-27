@@ -235,9 +235,10 @@ namespace stilb
             {
                 var rendererArray = renderers.ToArray();
 
-                if (lightmapGroup.packing == UVPackingType.ScaleOffset)
+                if (lightmapGroup.uvPacking == UVPackingType.ScaleOffset)
                 {
-                    var packer = UVPacking.uvpacker_create(lightmapGroup.resolution, lightmapGroup.resolution, 5, true);
+                    bool bruteForce = lightmapGroup.bruteForcePacking;
+                    var packer = UVPacking.uvpacker_create(lightmapGroup.resolution, lightmapGroup.resolution, 5, bruteForce);
                     for (int rendererIndex = 0; rendererIndex < renderers.Count; rendererIndex++)
                     {
                         Renderer r = renderers[rendererIndex];

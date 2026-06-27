@@ -23,7 +23,8 @@ namespace stilb
         public bool dilate = true;
         public bool denoise = true;
         public bool fixSeams = true;
-        public UVPackingType packing = UVPackingType.ScaleOffset;
+        public UVPackingType uvPacking = UVPackingType.ScaleOffset;
+        public bool bruteForcePacking = false;
         public LightmapSaveFormat format = LightmapSaveFormat.EXR;
         public Texture2D.EXRFlags exrFlags = Texture2D.EXRFlags.OutputAsFloat | Texture2D.EXRFlags.CompressZIP;
     }
