@@ -964,6 +964,7 @@ dependencies = [
  "gltf",
  "image",
  "libloading",
+ "rayon",
  "shaders",
 ]
 

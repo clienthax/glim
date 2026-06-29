@@ -11,6 +11,7 @@ shaders = { path = "../shaders" }
 ash = { version = "0.38", default-features = false, features = ["linked", "std", "debug"] }
 glfw-sys = { version = "8", default-features = false, features = ["prebuilt-libs", "native-handles"] }
 libloading = "0.9.0"
+rayon = { version = "1.12", default-features = false }
 
 [dev-dependencies]
 image = "0.25.10"

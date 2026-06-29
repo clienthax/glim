@@ -9,6 +9,8 @@
 // pack
 // if everything fits repeat with larger approximation or stop and scale charts back into [0, 1] uv range
 
+use rayon::iter::{IntoParallelRefMutIterator, ParallelIterator};
+
 use crate::math::{Vector2, Vector3};
 use core::slice;
 
@@ -34,7 +36,6 @@ impl Chart {
         let mut uv_area = 0.0f64;
         let mut world_area = 0.0f64;
 
-        // todo can be faster in parallel
         for chunk in self.indices.chunks_exact(3) {
             let (ia, ib, ic) = (chunk[0] as usize, chunk[1] as usize, chunk[2] as usize);
 
@@ -58,7 +59,6 @@ impl Chart {
     fn calculate_uv_area(&self) -> f64 {
         let mut area = 0.0f64;
 
-        // todo can be faster in parallel
         for chunk in self.indices.chunks_exact(3) {
             let (ia, ib, ic) = (chunk[0] as usize, chunk[1] as usize, chunk[2] as usize);
             area += determinant(self.uvs[ia], self.uvs[ib], self.uvs[ic]).abs() as f64;
@@ -260,10 +260,15 @@ impl UVPacker {
     fn try_pack_at_scale(&mut self, scale: f32) -> Option<Vec<(u32, u32)>> {
         let brute_force = self.brute_force;
 
-        for chart in &mut self.charts {
+        // for chart in &mut self.charts {
+        //     chart.scale_uvs_from_base(scale);
+        //     chart.bitmap = Bitmap::rasterize(chart);
+        // }
+
+        self.charts.par_iter_mut().for_each(|chart| {
             chart.scale_uvs_from_base(scale);
             chart.bitmap = Bitmap::rasterize(chart);
-        }
+        });
 
         let mut target = Bitmap::new(self.width, self.height);
         let mut placements: Vec<(u32, u32)> = Vec::with_capacity(self.charts.len());
