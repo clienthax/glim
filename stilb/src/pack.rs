@@ -125,10 +125,11 @@ pub struct UVPacker {
     brute_force: bool,
     pub target: Option<Bitmap>,
     iterations: u32,
+    padding: f32,
 }
 
 impl UVPacker {
-    pub fn new(width: u32, height: u32, iterations: u32, brute_force: bool) -> Self {
+    pub fn new(width: u32, height: u32, padding: f32, iterations: u32, brute_force: bool) -> Self {
         Self {
             charts: Vec::new(),
             width,
@@ -137,6 +138,7 @@ impl UVPacker {
             brute_force,
             target: None,
             iterations,
+            padding,
         }
     }
 
@@ -248,6 +250,7 @@ impl UVPacker {
 
         let inv_w = 1.0 / self.width as f32;
         let inv_h = 1.0 / self.height as f32;
+        let padding = self.padding;
 
         for (chart, &(ox, oy)) in self.charts.iter_mut().zip(placements.iter()) {
             chart.placed_offset = (ox, oy);
@@ -255,13 +258,13 @@ impl UVPacker {
             // Rebuild the bitmap at the winning scale (useful for debugging /
             // downstream consumers of chart.bitmap()).
             chart.scale_uvs_from_base(best_scale);
-            let bm = Bitmap::rasterize(chart);
+            let bm = Bitmap::rasterize(chart, padding);
             chart.bitmap = bm;
 
             // Write final [0, 1] atlas UVs derived from the frozen base_uvs.
             for (uv, &base) in chart.uvs.iter_mut().zip(chart.base_uvs.iter()) {
-                uv.x = (base.x * best_scale + ox as f32) * inv_w;
-                uv.y = (base.y * best_scale + oy as f32) * inv_h;
+                uv.x = (base.x * best_scale + ox as f32 + padding) * inv_w;
+                uv.y = (base.y * best_scale + oy as f32 + padding) * inv_h;
             }
         }
 
@@ -277,8 +280,8 @@ impl UVPacker {
         );
 
         let atlas_offset = Vector2::new(
-            chart.placed_offset.0 as f32 / self.width as f32,
-            chart.placed_offset.1 as f32 / self.height as f32,
+            (chart.placed_offset.0 as f32 + self.padding) / self.width as f32,
+            (chart.placed_offset.1 as f32 + self.padding) / self.height as f32,
         );
 
         let offset = atlas_offset - chart.chart_uv_min * scale;
@@ -291,10 +294,12 @@ impl UVPacker {
     /// not be placed.
     fn try_pack_at_scale(&mut self, scale: f32) -> Option<Vec<(u32, u32)>> {
         let brute_force = self.brute_force;
+
+        let padding = self.padding;
         // Rasterise all charts at this scale (mutable pass).
         for chart in &mut self.charts {
             chart.scale_uvs_from_base(scale);
-            chart.bitmap = Bitmap::rasterize(chart);
+            chart.bitmap = Bitmap::rasterize(chart, padding);
         }
 
         let mut target = Bitmap::new(self.width, self.height);
@@ -495,6 +500,30 @@ impl Bitmap {
         false
     }
 
+    fn dilate(&mut self, radius: u32) {
+        if radius == 0 {
+            return;
+        }
+        let original = self.pixels.clone();
+        for y in 0..self.height {
+            for x in 0..self.width {
+                let wi = y as usize * self.row_stride + x as usize / 64;
+                if original[wi] & (1u64 << (x % 64)) == 0 {
+                    continue;
+                }
+                let x0 = x.saturating_sub(radius);
+                let x1 = (x + radius).min(self.width - 1);
+                let y0 = y.saturating_sub(radius);
+                let y1 = (y + radius).min(self.height - 1);
+                for dy in y0..=y1 {
+                    for dx in x0..=x1 {
+                        self.set_pixel(dx, dy);
+                    }
+                }
+            }
+        }
+    }
+
     /// Stamp `other` at (ox, oy) into `self` (bitwise OR).  Used after a
     /// successful placement to mark the atlas region as occupied.
     fn paint(&mut self, other: &Bitmap, ox: u32, oy: u32) {
@@ -530,27 +559,29 @@ impl Bitmap {
         }
     }
 
-    fn rasterize(chart: &Chart) -> Self {
+    fn rasterize(chart: &Chart, padding: f32) -> Self {
+        let pad = padding.ceil() as u32;
+
         let mut max_x = 0.0_f32;
         let mut max_y = 0.0_f32;
-
         for uv in &chart.uvs {
             max_x = max_x.max(uv.x);
             max_y = max_y.max(uv.y);
         }
 
-        let width = max_x.ceil() as u32 + 1;
-        let height = max_y.ceil() as u32 + 1;
-
+        let width = max_x.ceil() as u32 + 1 + 2 * pad;
+        let height = max_y.ceil() as u32 + 1 + 2 * pad;
         let mut bm = Self::new(width, height);
 
+        let offset = Vector2::new(padding, padding);
         for chunk in chart.indices.chunks_exact(3) {
-            let a = chart.uvs[chunk[0] as usize];
-            let b = chart.uvs[chunk[1] as usize];
-            let c = chart.uvs[chunk[2] as usize];
+            let a = chart.uvs[chunk[0] as usize] + offset;
+            let b = chart.uvs[chunk[1] as usize] + offset;
+            let c = chart.uvs[chunk[2] as usize] + offset;
             rasterize_triangle_conservative(a, b, c, &mut bm);
         }
 
+        bm.dilate(pad);
         bm
     }
 
@@ -620,12 +651,14 @@ fn edge(a: Vector2, b: Vector2, p: Vector2) -> f32 {
 pub unsafe extern "C" fn uvpacker_create(
     width: u32,
     height: u32,
+    padding: f32,
     iterations: u32,
     brute_force: bool,
 ) -> *mut UVPacker {
     Box::into_raw(Box::new(UVPacker::new(
         width,
         height,
+        padding,
         iterations,
         brute_force,
     ))) as *mut UVPacker

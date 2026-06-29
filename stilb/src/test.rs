@@ -447,7 +447,7 @@ mod tests {
         let path = "../meshes/packuv.glb";
         // let path = "../meshes/plane.glb";
 
-        let mut packer = UVPacker::new(512, 512, 5, true);
+        let mut packer = UVPacker::new(512, 512, 2.0, 5, true);
 
         let (document, buffers, _) =
             gltf::import(path).map_err(|e| std::io::Error::new(std::io::ErrorKind::Other, e))?;

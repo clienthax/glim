@@ -9,7 +9,7 @@ namespace stilb
         const string DLL = "stilb";
 
         [DllImport(DLL)]
-        public static extern IntPtr uvpacker_create(uint width, uint height, uint iterations, [MarshalAs(UnmanagedType.I1)] bool bruteForce);
+        public static extern IntPtr uvpacker_create(uint width, uint height, float padding, uint iterations, [MarshalAs(UnmanagedType.I1)] bool bruteForce);
 
         [DllImport(DLL)]
         public static extern void uvpacker_destroy(IntPtr handle);
