@@ -1,7 +1,10 @@
+using System.Linq;
+using System.Reflection;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEditor.UIElements;
 using UnityEngine;
+using UnityEngine.SceneManagement;
 using UnityEngine.UIElements;
 
 namespace stilb
@@ -62,6 +65,21 @@ namespace stilb
             };
             root.Add(startBakeButton);
 
+            Button reflectionProbesButton = new()
+            {
+                text = "Bake Reflection Probes",
+                style =
+                {
+                    height = 25
+                }
+            };
+            reflectionProbesButton.clicked += () =>
+            {
+                BakeAllReflectionProbesSnapshots(EditorSceneManager.GetActiveScene(), baker.reflectionProbesSuperSampling ? 2 : 1);
+            };
+            root.Add(reflectionProbesButton);
+
+
             Button clearButton = new()
             {
                 text = "Clear Lighting Data",
@@ -117,6 +135,52 @@ namespace stilb
             root.Add(startPreviewButton);
 
             return root;
+        }
+
+
+        public static void BakeAllReflectionProbesSnapshots(Scene scene, int supersampling)
+        {
+            var root = scene.GetRootGameObjects();
+
+            var probes = root.SelectMany(x => x.GetComponentsInChildren<ReflectionProbe>()).ToArray();
+
+            if (supersampling > 1)
+            {
+                foreach (var probe in probes)
+                {
+                    probe.resolution *= supersampling;
+                }
+            }
+
+            try
+            {
+                MethodInfo bakeMethod = typeof(Lightmapping).GetMethod(
+                    "BakeAllReflectionProbesSnapshots",
+                    BindingFlags.Static | BindingFlags.NonPublic
+                );
+
+                bool success = (bool)bakeMethod.Invoke(null, null);
+            }
+            finally
+            {
+                if (supersampling > 1)
+                {
+                    foreach (var probe in probes)
+                    {
+                        probe.resolution /= supersampling;
+
+                        var path = AssetDatabase.GetAssetPath(probe.bakedTexture);
+                        TextureImporter textureImporter = AssetImporter.GetAtPath(path) as TextureImporter;
+                        if (textureImporter == null)
+                        {
+                            continue;
+                        }
+
+                        textureImporter.maxTextureSize = probe.resolution;
+                        textureImporter.SaveAndReimport();
+                    }
+                }
+            }
         }
     }
 }

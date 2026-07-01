@@ -14,7 +14,7 @@
 - [ ] Light Cookies
 - [ ] Area lights
 - [ ] Light Probes Deringing
-- [ ] Bake reflection probes button with super sampling
+- [x] Bake reflection probes button with super sampling
 - [ ] Shadowmask
 - [ ] Subtractive
 - [ ] Ambient Occlusion
@@ -52,6 +52,7 @@
 - [ ] Can only bake one currently loaded scene
 - [ ] Preview crashes when closing on linux
 - [ ] OpenGL unity is flipped xd
+- [ ] Fix URP light falloff
 
 
 # Complete

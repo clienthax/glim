@@ -30,6 +30,9 @@ namespace stilb
         public uint bounces = 5;
         [NonSerialized] public bool multipleImportanceSampling = false;
 
+        public bool reflectionProbesSuperSampling = true;
+
+
         [Header("Preview Settings")]
         public uint previewWidth = 1024;
         public uint previewHeight = 1024;
