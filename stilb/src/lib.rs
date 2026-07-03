@@ -13,7 +13,7 @@ use crate::compute_shader::*;
 use crate::graphics_shader::update_visibility_shader;
 use crate::lights::light_buffer_flags;
 use crate::seams::{Seam, fix_seams, inpaint};
-use crate::sh::SHProbe;
+use crate::sh::SHProbeL2;
 use crate::{
     camera::Camera,
     compute_shader::{
@@ -77,7 +77,7 @@ pub struct Stilb {
 
     pub preview_push_constants: PreviewPushConstants,
 
-    pub probes: Vec<SHProbe>,
+    pub probes: Vec<SHProbeL2>,
 
     pub probes_buffer: Buffer,
     pub bake_probes_shader: ComputeShader,
@@ -997,10 +997,6 @@ fn render_lightmaps(app: &mut Stilb) {
         (app.opaque_mesh.indices.len() / 3) as u32,
     );
 
-    for group in &mut app.groups {
-        group.emission.destroy(&app.vk);
-    }
-
     for bounce_index in 0..bounce_count {
         let previous: Vec<vk::ImageView> = previous_diffuses.iter().map(|x| x.view()).collect();
 
@@ -1156,14 +1152,16 @@ fn render_lightmaps(app: &mut Stilb) {
                 let pixels = &group.lightmap_diffuse_previous_bounce;
                 previous_diffuses[i].set_pixels(&app.vk, pixels, &app.staging_buffer);
             }
+        } else {
+            for i in 0..app.groups.len() {
+                let group = &mut app.groups[i];
+                let pixels = &group.lightmap_diffuse_final;
+                previous_diffuses[i].set_pixels(&app.vk, pixels, &app.staging_buffer);
+            }
         }
     }
 
     bake_bounce_shader.destroy(&app.vk);
-
-    for tex in &mut previous_diffuses {
-        tex.destroy(&app.vk);
-    }
 
     for i in 0..app.groups.len() {
         let group = &mut app.groups[i];
@@ -1233,6 +1231,128 @@ fn render_lightmaps(app: &mut Stilb) {
         };
 
         (app.config.lightmap_read_callback)(readback_data);
+    }
+
+    if app.probes.len() > 0 {
+        let shader = &app.bake_probes_shader;
+
+        let diffuses: Vec<vk::ImageView> = previous_diffuses.iter().map(|x| x.view()).collect();
+
+        update_bake_sh_shader(
+            &app.vk,
+            shader,
+            app.tlas.acceleration_structure(),
+            app.probes_buffer.buffer,
+            &albedos,
+            &emissions,
+            &diffuses,
+            app.texture_sampler,
+            app.gpu_mesh.index_buffer.buffer,
+            app.gpu_mesh.vertex_buffer.buffer,
+            app.gpu_lights.buffer,
+        );
+
+        let probes_samples = app.config.probe_samples;
+
+        let mut push = BakeSHPushConstants {
+            lights_count,
+            max_samples: app.config.probe_samples,
+            sample_index: 0,
+            probes_count: app.probes.len() as u32,
+            pad0: 0,
+            pad1: 0,
+        };
+
+        loop {
+            let vk = &app.vk.device;
+
+            let cmd = app.vk.command_buffer;
+
+            let begin_info = vk::CommandBufferBeginInfo {
+                flags: vk::CommandBufferUsageFlags::ONE_TIME_SUBMIT,
+                ..Default::default()
+            };
+
+            let probes_count = app.probes.len() as u32;
+
+            let groups_x = (probes_count + 63) / 64;
+
+            let constants_bytes = as_bytes(&push);
+
+            unsafe {
+                vk.reset_command_buffer(cmd, vk::CommandBufferResetFlags::empty())
+                    .unwrap();
+
+                vk.begin_command_buffer(cmd, &begin_info).unwrap();
+
+                vk.cmd_bind_pipeline(cmd, vk::PipelineBindPoint::COMPUTE, shader.pipeline);
+
+                vk.cmd_bind_descriptor_sets(
+                    cmd,
+                    vk::PipelineBindPoint::COMPUTE,
+                    shader.pipeline_layout,
+                    0,
+                    &[shader.descriptor_set],
+                    &[],
+                );
+
+                vk.cmd_push_constants(
+                    cmd,
+                    shader.pipeline_layout,
+                    vk::ShaderStageFlags::COMPUTE,
+                    0,
+                    &constants_bytes,
+                );
+
+                vk.cmd_dispatch(cmd, groups_x, 1, 1);
+
+                let vk = &app.vk.device;
+
+                let cmds = [cmd];
+                let submit = vk::SubmitInfo::default().command_buffers(&cmds);
+
+                vk.end_command_buffer(cmd).unwrap();
+
+                vk.queue_submit(app.vk.compute_queue, &[submit], vk::Fence::null())
+                    .unwrap();
+
+                vk.queue_wait_idle(app.vk.compute_queue).unwrap()
+            };
+
+            push.sample_index += 1;
+            if push.sample_index >= push.max_samples {
+                break;
+            }
+        }
+
+        println!("light probes baked");
+
+        unsafe {
+            app.vk.device.device_wait_idle().unwrap();
+        }
+
+        // println!("Probes:\n{:#?}", &app.probes);
+        app.vk
+            .download_buffer(app.probes_buffer.buffer, &mut app.probes);
+
+        for probe in &mut app.probes {
+            probe.normalize(probes_samples);
+        }
+
+        let readback_data = LightprobesReadbackData {
+            probes: app.probes.as_ptr(),
+            pixels_count: app.probes.len() as u32,
+        };
+
+        (app.config.lightprobes_read_callback)(readback_data);
+    }
+
+    for group in &mut app.groups {
+        group.emission.destroy(&app.vk);
+    }
+
+    for tex in &mut previous_diffuses {
+        tex.destroy(&app.vk);
     }
 }
 

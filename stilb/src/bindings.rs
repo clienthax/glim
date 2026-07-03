@@ -10,7 +10,7 @@ use crate::{
     lights::Light,
     math::Vector3,
     mesh::{FfiMesh, Mesh},
-    sh::SHProbe,
+    sh::SHProbeL2,
 };
 
 #[repr(C)]
@@ -131,7 +131,7 @@ pub struct LightmapReadbackData {
 
 #[repr(C)]
 pub struct LightprobesReadbackData {
-    pub probes: *const SHProbe,
+    pub probes: *const SHProbeL2,
     pub pixels_count: u32,
 }
 
@@ -318,7 +318,7 @@ pub extern "C" fn app_add_probe(app: *mut Stilb, mut position: Vector3) {
         let system = app.config.coordinate_system;
         position.transform_space(system);
 
-        let probe = SHProbe {
+        let probe = SHProbeL2 {
             position,
             pad0: 0,
             l0: Vector3::ZERO,

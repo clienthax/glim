@@ -58,7 +58,7 @@ mod tests {
     fn test_bake() {
         let mut config = make_config();
         config.is_preview = false;
-        test_render(config, false);
+        test_render(config, true);
     }
 
     fn test_render(mut config: StilbConfig, test_probes: bool) {

@@ -211,6 +211,7 @@ impl VulkanContext {
         let mut features12 = vk::PhysicalDeviceVulkan12Features {
             buffer_device_address: vk::TRUE,
             runtime_descriptor_array: vk::TRUE,
+            shader_sampled_image_array_non_uniform_indexing: vk::TRUE,
             ..Default::default()
         };
 

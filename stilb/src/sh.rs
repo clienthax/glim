@@ -4,7 +4,7 @@ use crate::math::Vector3;
 
 #[repr(C)]
 #[derive(Debug, Copy, Clone)]
-pub struct SHProbe {
+pub struct SHProbeL2 {
     pub position: Vector3,
     pub pad0: u32,
 
@@ -33,7 +33,7 @@ pub struct SHProbe {
     pub pad9: u32,
 }
 
-impl SHProbe {
+impl SHProbeL2 {
     #[inline]
     pub fn normalize(&mut self, samples: u32) {
         let scale = 1.0 / (samples as f32);

@@ -145,7 +145,7 @@ pub struct BakeSHPushConstants {
     pub probes_count: u32,
 
     pub pad0: u32,
-    pub bounce_count: u32,
+    pub pad1: u32,
 }
 
 #[repr(C)]
@@ -529,6 +529,7 @@ pub fn load_bake_sh_shader(
     bind_indices(&mut bindings);
     bind_vertices(&mut bindings);
     bind_lights(&mut bindings);
+    bind_previous_diffuse(&mut bindings, lightmap_group_count);
 
     let push_constant_ranges = [vk::PushConstantRange {
         stage_flags: vk::ShaderStageFlags::COMPUTE,
@@ -566,6 +567,7 @@ pub fn update_bake_sh_shader(
     probes: vk::Buffer,
     albedos: &[vk::ImageView],
     emissions: &[vk::ImageView],
+    diffuses: &[vk::ImageView],
     sampler: vk::Sampler,
     indices: vk::Buffer,
     vertices: vk::Buffer,
@@ -695,6 +697,25 @@ pub fn update_bake_sh_shader(
         ..Default::default()
     };
     write = write.buffer_info(&info);
+    descriptor_writes.push(write);
+
+    // PreviousDiffuse
+    let infos: Vec<vk::DescriptorImageInfo> = diffuses
+        .iter()
+        .map(|tex| vk::DescriptorImageInfo {
+            image_view: *tex,
+            image_layout: vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
+            ..Default::default()
+        })
+        .collect();
+    let mut write = vk::WriteDescriptorSet {
+        dst_set: shader.descriptor_set,
+        dst_binding: 13,
+        dst_array_element: 0,
+        descriptor_type: vk::DescriptorType::SAMPLED_IMAGE,
+        ..Default::default()
+    };
+    write = write.image_info(&infos);
     descriptor_writes.push(write);
 
     unsafe { vk.device.update_descriptor_sets(&descriptor_writes, &[]) };

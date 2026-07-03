@@ -14,12 +14,12 @@ struct PushConstants
     uint sampleIndex;
     uint probeCount;
     uint pad0;
-    uint bounceCount;
+    uint pad1;
 };
 
 [shader("compute")]
-    [numthreads(64, 1, 1)] void
-    main(uint3 threadID : SV_DispatchThreadID)
+[numthreads(64, 1, 1)]
+void main(uint3 threadID: SV_DispatchThreadID)
 {
     uint probeIndex = threadID.x;
 
@@ -33,7 +33,6 @@ struct PushConstants
 
     uint sampleIndex = Push.sampleIndex;
     uint sampleCount = Push.maxSamples;
-    uint bounceCount = Push.bounceCount;
     uint lightCount = Push.lightCount;
 
     uint sobolIndexMask = ~0u;
@@ -79,4 +78,6 @@ struct PushConstants
             AccumulateL2(probe, sampleIndex, previousDiffuse * bounceAlbedo * 4, bounceRay.D);
         }
     }
+
+    SHProbes[probeIndex] = probe;
 }
