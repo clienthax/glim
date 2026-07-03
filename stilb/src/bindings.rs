@@ -34,6 +34,7 @@ pub struct StilbConfig {
     pub texture_filter: TextureSamplerFilter,
     pub probe_samples: u32,
     pub probe_bounces: u32,
+    pub probe_radius: f32,
     pub light_falloff: LightFalloffType,
 
     pub mis: bool,

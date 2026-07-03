@@ -27,6 +27,7 @@ namespace stilb
         public uint directSamples = 512;
         public uint indirectSamples = 1024;
         public uint lightProbeSamples = 4096;
+        public float lightProbeRadius = 0.0f;
         public uint bounces = 5;
         [NonSerialized] public bool multipleImportanceSampling = false;
 

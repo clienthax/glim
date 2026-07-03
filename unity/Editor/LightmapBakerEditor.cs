@@ -58,6 +58,7 @@ namespace stilb
                     Vector3.zero,
                     (Bindings.TextureSamplerFilter)baker.filter,
                     baker.lightProbeSamples,
+                    baker.lightProbeRadius,
                     baker.lightFalloff,
                     baker.multipleImportanceSampling
                 );
@@ -125,6 +126,7 @@ namespace stilb
                     camera.transform.forward,
                     (Bindings.TextureSamplerFilter)baker.filter,
                     baker.lightProbeSamples,
+                    baker.lightProbeRadius,
                     baker.lightFalloff,
                     baker.multipleImportanceSampling
                 );

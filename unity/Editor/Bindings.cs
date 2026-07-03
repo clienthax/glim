@@ -42,6 +42,7 @@ namespace stilb
             public readonly TextureSamplerFilter texture_filter;
             public readonly uint probe_samples;
             public readonly uint probe_bounces;
+            public readonly float probe_radius;
             public readonly uint light_falloff;
 
             [MarshalAs(UnmanagedType.I1)] public readonly bool mis;
@@ -61,6 +62,7 @@ namespace stilb
                                Vector3 camera_forward,
                                TextureSamplerFilter texture_filter,
                                uint probe_samples,
+                               float probe_radius,
                                LightFalloffType falloff,
                                bool mis)
             {
@@ -82,6 +84,7 @@ namespace stilb
                 this.vulkan_validation_layers = false;
                 this.seams_debug = false;
                 this.mis = mis;
+                this.probe_radius = probe_radius;
 
                 var currentPipeline = GraphicsSettings.currentRenderPipeline;
                 uint autoFalloff = 0;

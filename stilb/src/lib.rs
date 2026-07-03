@@ -1251,8 +1251,10 @@ fn render_lightmaps(app: &mut Stilb) {
             max_samples: app.config.probe_samples,
             sample_index: 0,
             probes_count: app.probes.len() as u32,
+            probes_radius: app.config.probe_radius,
             pad0: 0,
             pad1: 0,
+            pad2: 0,
         };
 
         loop {
