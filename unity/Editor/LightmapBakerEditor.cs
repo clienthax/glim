@@ -227,13 +227,13 @@ namespace stilb
                     if (l.type == LightType.Point)
                     {
                         mpb.SetInt("_LightType", 0);
-                        go.transform.localScale = new Vector3(l.shadowRadius, l.shadowRadius, l.shadowRadius) * 0.5f;
+                        go.transform.localScale = new Vector3(l.shadowRadius, l.shadowRadius, l.shadowRadius) * 2.0f;
                     }
                     else if (l.type == LightType.Spot)
                     {
                         mpb.SetInt("_LightType", 1);
                         mpb.SetFloat("_LightSpotAngle", l.spotAngle);
-                        go.transform.localScale = new Vector3(l.shadowRadius, l.shadowRadius, l.shadowRadius) * 0.5f;
+                        go.transform.localScale = new Vector3(l.shadowRadius, l.shadowRadius, l.shadowRadius) * 2.0f;
                     }
                     else if (l.type == LightType.Directional)
                     {

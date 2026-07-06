@@ -156,7 +156,25 @@ Shader "Unlit/Light Mesh"
                 }
 
                 float4 color = 1.0;
-                color.rgb = _LightColor.rgb * _LightIntensity * 3.14159;
+
+                float intensityScale = 1.0;
+                if (_LightType == 0 || _LightType == 1)
+                {
+                    intensityScale = (4.0 * UNITY_PI) * radius * radius;
+                }
+                if (_LightType == 2)
+                {
+                    float theta = radians(_LightDirectionalAngle * 0.5);
+                    float solidAngle = 2.0 * UNITY_PI * (1.0 - cos(theta));
+                    intensityScale = solidAngle;
+                }
+                if (_LightType == 3)
+                {
+                    float area = 1.0; // todo
+                    intensityScale = UNITY_PI * area;
+                }
+
+                color.rgb = _LightColor.rgb * _LightIntensity / max(intensityScale, 0.0001);
 
                 float4 positionCS = mul(UNITY_MATRIX_VP, float4(positionWS, 1.0));
                 float ndcDepth = positionCS.z / positionCS.w;
