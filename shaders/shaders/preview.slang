@@ -16,8 +16,8 @@ struct PushConstants
 };
 
 [shader("compute")]
-[numthreads(8, 8, 1)]
-void main(uint3 threadID: SV_DispatchThreadID)
+    [numthreads(8, 8, 1)] void
+    main(uint3 threadID : SV_DispatchThreadID)
 {
     uint2 coords = threadID.xy;
     uint2 resolution = uint2(Push.width, Push.height);
@@ -63,6 +63,9 @@ void main(uint3 threadID: SV_DispatchThreadID)
         surface.P = surface.smoothP;
     }
 
+    float3 positionWS = RayOffset(surface.P, surface.Ng);
+    float3 normalWS = surface.N;
+
     for (uint bounceIndex = 0; bounceIndex < (Push.bounceCount + 1); bounceIndex++)
     {
         float2 xiLight = SobolBurleySample2D(indexing.x, dimension++, indexing.y, indexing.z);
@@ -70,7 +73,7 @@ void main(uint3 threadID: SV_DispatchThreadID)
         for (uint lightIndex = 0; lightIndex < Push.lightCount; lightIndex++)
         {
             float3 L;
-            color.rgb += ShadeLightDirect(Lights[lightIndex], surface, xiLight, throughput, L);
+            color.rgb += ShadeLightDirect(Lights[lightIndex], positionWS, normalWS, xiLight, throughput, L);
         }
 
         float2 xiBounce = SobolBurleySample2D(indexing.x, dimension++, indexing.y, indexing.z);
@@ -78,13 +81,15 @@ void main(uint3 threadID: SV_DispatchThreadID)
         Ray bounceRay;
         bounceRay.tMin = 0;
         bounceRay.tMax = RAY_MAX;
-        bounceRay.P = RayOffset(surface.P, surface.Ng);
-        bounceRay.D = RandomDirectionInHemisphere(surface.N, xiBounce);
+        bounceRay.P = positionWS;
+        bounceRay.D = RandomDirectionInHemisphere(normalWS, xiBounce);
 
         Hit bounceHit;
         if (TraceRay(bounceRay, bounceHit))
         {
-            surface = Surface::Get(bounceHit.primitiveID, bounceHit.bary, bounceHit.frontFace);
+            Surface surface = Surface::Get(bounceHit.primitiveID, bounceHit.bary, bounceHit.frontFace);
+            positionWS = RayOffset(surface.P, surface.Ng);
+            normalWS = surface.N;
 
             if (!bounceHit.frontFace)
             {

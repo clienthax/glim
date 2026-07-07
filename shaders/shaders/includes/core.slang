@@ -406,10 +406,10 @@ float Luminance(float3 rgb)
 //     return color;
 // }
 
-float3 ShadeLightDirect(Light light, Surface surface, float2 xi, float3 throughput, out float3 L)
+float3 ShadeLightDirect(Light light, float3 positionWS, float3 normalWS, float2 xi, float3 throughput, out float3 L)
 {
     Ray shadowRay;
-    shadowRay.P = RayOffset(surface.P, surface.Ng);
+    shadowRay.P = positionWS;
     shadowRay.tMin = 0;
 
     float falloff;
@@ -424,10 +424,10 @@ float3 ShadeLightDirect(Light light, Surface surface, float2 xi, float3 throughp
     {
         if (light.ShadowRangeOrAngle > 0.0)
         {
-            L = RandomPointOnOrientedDisk(light.position, light.ShadowRangeOrAngle, surface.P, xi);
+            L = RandomPointOnOrientedDisk(light.position, light.ShadowRangeOrAngle, positionWS, xi);
         }
 
-        float3 positionToLight = L - surface.P;
+        float3 positionToLight = L - positionWS;
         L = normalize(positionToLight);
 
         float distanceSquare = dot(positionToLight, positionToLight);
@@ -449,7 +449,7 @@ float3 ShadeLightDirect(Light light, Surface surface, float2 xi, float3 throughp
         shadowRay.tMax = sqrt(distanceSquare);
     }
 
-    float cosTheta = saturate(dot(surface.N, L));
+    float cosTheta = saturate(dot(normalWS, L));
 
     shadowRay.D = L;
 
@@ -466,10 +466,10 @@ float3 ShadeLightDirect(Light light, Surface surface, float2 xi, float3 throughp
     return color;
 }
 
-float3 ShadeLightDirectSH(Light light, float3 position, float2 xi, float3 throughput, out float3 L)
+float3 ShadeLightDirectSH(Light light, float3 positionWS, float2 xi, float3 throughput, out float3 L)
 {
     Ray shadowRay;
-    shadowRay.P = position;
+    shadowRay.P = positionWS;
     shadowRay.tMin = 0;
 
     float falloff;
@@ -484,10 +484,10 @@ float3 ShadeLightDirectSH(Light light, float3 position, float2 xi, float3 throug
     {
         if (light.ShadowRangeOrAngle > 0.0)
         {
-            L = RandomPointOnOrientedDisk(light.position, light.ShadowRangeOrAngle, position, xi);
+            L = RandomPointOnOrientedDisk(light.position, light.ShadowRangeOrAngle, positionWS, xi);
         }
 
-        float3 positionToLight = L - position;
+        float3 positionToLight = L - positionWS;
         L = normalize(positionToLight);
 
         float distanceSquare = dot(positionToLight, positionToLight);

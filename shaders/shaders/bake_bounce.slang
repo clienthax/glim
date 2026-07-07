@@ -18,8 +18,8 @@ struct PushConstants
 };
 
 [shader("compute")]
-[numthreads(8, 8, 1)]
-void main(uint3 threadID: SV_DispatchThreadID)
+    [numthreads(8, 8, 1)] void
+    main(uint3 threadID : SV_DispatchThreadID)
 {
     uint2 coords = threadID.xy;
     uint2 resolution = uint2(Push.width, Push.height);
@@ -31,18 +31,13 @@ void main(uint3 threadID: SV_DispatchThreadID)
 
     float4 visibility = VisibilityBuffer[coords];
 
-    uint encoded = asuint(visibility.a);
-
-    if (encoded == 0)
+    if (all(visibility == 0))
     {
         return;
     }
 
-    uint primitiveID = asuint(visibility.z);
-    float2 bary = visibility.xy;
-    bool useSmoothP = (encoded & (1 << 1)) != 0;
-
-    Surface surface = Surface::Get(primitiveID, bary);
+    float3 positionWS = visibility.xyz;
+    float3 normalWS = UnpackNormalOctahedron(visibility.w);
 
     uint sampleIndex = Push.sampleIndex;
     uint sampleCount = Push.maxSamples;
@@ -58,8 +53,8 @@ void main(uint3 threadID: SV_DispatchThreadID)
     float2 xiBounce = SobolBurleySample2D(indexing.x, dimension, indexing.y, indexing.z);
 
     Ray bounceRay;
-    bounceRay.P = RayOffset(surface.P, surface.Ng);
-    bounceRay.D = RandomDirectionInHemisphere(surface.N, xiBounce);
+    bounceRay.P = positionWS;
+    bounceRay.D = RandomDirectionInHemisphere(normalWS, xiBounce);
     bounceRay.tMin = 0;
     bounceRay.tMax = RAY_MAX;
 
@@ -68,8 +63,7 @@ void main(uint3 threadID: SV_DispatchThreadID)
     Hit bounceHit;
     if (TraceRay(bounceRay, bounceHit))
     {
-        Surface previousSurface = surface;
-        surface = Surface::Get(bounceHit.primitiveID, bounceHit.bary, bounceHit.frontFace);
+        Surface surface = Surface::Get(bounceHit.primitiveID, bounceHit.bary, bounceHit.frontFace);
 
         if (!bounceHit.frontFace)
         {

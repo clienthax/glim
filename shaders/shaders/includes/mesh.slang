@@ -19,6 +19,50 @@ float3 DecodeNormalOctahedron(float2 e)
     return normalize(v);
 }
 
+float2 EncodeNormalOctahedron(float3 n)
+{
+    n /= abs(n.x) + abs(n.y) + abs(n.z);
+
+    float2 e = n.xy;
+
+    if (n.z < 0.0)
+    {
+        e = OctahedronWrap(e);
+    }
+
+    return e;
+}
+
+float PackNormalOctahedron(float3 normalWS)
+{
+    float2 oct = EncodeNormalOctahedron(normalWS);
+
+    // [-1,1] -> [0,1]
+    oct = oct * 0.5 + 0.5;
+
+    uint x = (uint)round(saturate(oct.x) * 65535.0);
+    uint y = (uint)round(saturate(oct.y) * 65535.0);
+
+    return asfloat((x << 16) | y);
+}
+
+float3 UnpackNormalOctahedron(float packed)
+{
+    uint bits = asuint(packed);
+
+    uint x = bits >> 16;
+    uint y = bits & 0xFFFF;
+
+    float2 oct;
+    oct.x = x / 65535.0;
+    oct.y = y / 65535.0;
+
+    // [0,1] -> [-1,1]
+    oct = oct * 2.0 - 1.0;
+
+    return DecodeNormalOctahedron(oct);
+}
+
 struct Vertex
 {
     float3 position;
