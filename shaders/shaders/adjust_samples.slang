@@ -3,9 +3,9 @@
 
 float3 AdjustSamplePosition(Surface surface, uint primitiveID, float2 bary)
 {
-    float3 positionWS = RayOffset(surface.P, surface.Ng);
-
     bool smoothP = UseSmoothPosition(surface);
+
+    float3 positionWS = RayOffset(surface.P, surface.Ng);
 
     if (smoothP)
     {
@@ -26,6 +26,7 @@ float3 AdjustSamplePosition(Surface surface, uint primitiveID, float2 bary)
     float2 uv1 = Vertices[i1].GetUV();
     float2 uv2 = Vertices[i2].GetUV();
 
+    // some ideas from https://ndotl.wordpress.com/2018/08/29/baking-artifact-free-lightmaps/
     float3 edge1 = p1 - p0;
     float3 edge2 = p2 - p0;
     float2 duv1 = uv1 - uv0;
@@ -41,8 +42,7 @@ float3 AdjustSamplePosition(Surface surface, uint primitiveID, float2 bary)
     float3 worldTexelU = dPdU * texelSizeUV.x;
     float3 worldTexelV = dPdV * texelSizeUV.y;
 
-    // some ideas from https://ndotl.wordpress.com/2018/08/29/baking-artifact-free-lightmaps/
-    float rayLength = (length(worldTexelU) + length(worldTexelV)) * sqrt(2.0);
+    float rayLength = (length(worldTexelU) + length(worldTexelV)) * sqrt(2.0) * 0.5;
 
     float3 u = normalize(worldTexelU - dot(worldTexelU, surface.Ng) * surface.Ng);
     float3 v = normalize(worldTexelV - dot(worldTexelV, surface.Ng) * surface.Ng);
@@ -53,7 +53,8 @@ float3 AdjustSamplePosition(Surface surface, uint primitiveID, float2 bary)
     leakRay.tMin = 0;
     leakRay.tMax = rayLength;
     Hit leakHit;
-    for (int i = 0; i < 4; i++)
+
+    [loop] for (int i = 0; i < 4; i++)
     {
         leakRay.D = rayDirs[i];
 
@@ -61,9 +62,9 @@ float3 AdjustSamplePosition(Surface surface, uint primitiveID, float2 bary)
         {
             if (!leakHit.frontFace)
             {
-                Surface hitSurf = Surface::Get(leakHit.primitiveID, leakHit.bary, leakHit.frontFace);
-                const float bias = 0.0001;
-                positionWS = positionWS + leakRay.D * leakHit.t + hitSurf.Ng * bias;
+                Surface hitSurf = Surface::Get(leakHit.primitiveID, leakHit.bary, true);
+                positionWS = RayOffset(positionWS + leakRay.D * leakHit.t, hitSurf.Ng);
+                break;
             }
         }
     }
