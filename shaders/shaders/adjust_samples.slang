@@ -38,7 +38,7 @@ float3 AdjustSamplePosition(Surface surface, uint primitiveID, float2 bary)
     float3 worldTexelU = dPdU * texelSizeUV.x;
     float3 worldTexelV = dPdV * texelSizeUV.y;
 
-    float rayLength = (length(worldTexelU) + length(worldTexelV)) * sqrt(2.0);
+    float rayLength = (length(worldTexelU) + length(worldTexelV)) * sqrt(2.0) * 0.5;
 
     float3 u = normalize(worldTexelU - dot(worldTexelU, surface.Ng) * surface.Ng);
     float3 v = normalize(worldTexelV - dot(worldTexelV, surface.Ng) * surface.Ng);
