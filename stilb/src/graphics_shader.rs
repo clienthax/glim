@@ -6,7 +6,12 @@ use shaders::{
     get_init_from_bake_vertex_shader,
 };
 
-use crate::{shader_bindings::bind_sampler, texture2d::Texture2D, vulkan_context::VulkanContext};
+use crate::{
+    as_bytes,
+    compute_shader::{SpecializationConstants, create_specialization_map_entries},
+    texture2d::Texture2D,
+    vulkan_context::VulkanContext,
+};
 
 pub struct GraphicsShader {
     vertex_module: vk::ShaderModule,
@@ -298,11 +303,11 @@ pub struct VisibilityPushConstants {
     pub convervative: u32,
 }
 
-pub fn create_visibility_shader(
+pub fn load_visibility_shader(
     vk: &mut VulkanContext,
     visibility: &Texture2D,
-    lightmap_groups: u32,
     conservative: bool,
+    constants: &SpecializationConstants,
 ) -> GraphicsShader {
     let mut bindings = Vec::new();
 
@@ -332,7 +337,7 @@ pub fn create_visibility_shader(
     bindings.push(vk::DescriptorSetLayoutBinding {
         binding: 3,
         descriptor_type: vk::DescriptorType::SAMPLED_IMAGE,
-        descriptor_count: lightmap_groups,
+        descriptor_count: constants.lightmap_group_count,
         stage_flags: vk::ShaderStageFlags::FRAGMENT,
         ..Default::default()
     });
@@ -351,6 +356,12 @@ pub fn create_visibility_shader(
         size: std::mem::size_of::<VisibilityPushConstants>() as u32,
     }];
 
+    let map_entries = create_specialization_map_entries();
+    let data_bytes = as_bytes(constants);
+    let specialization_info = vk::SpecializationInfo::default()
+        .map_entries(&map_entries)
+        .data(data_bytes);
+
     let shader = GraphicsShader::new(
         vk,
         Some(get_init_from_bake_vertex_shader()),
@@ -358,7 +369,7 @@ pub fn create_visibility_shader(
         Some(get_init_from_bake_geometry_shader()),
         &bindings,
         &push_constant_ranges,
-        &vk::SpecializationInfo::default(),
+        &specialization_info,
         visibility,
         conservative,
     );

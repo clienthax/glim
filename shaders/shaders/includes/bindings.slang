@@ -55,6 +55,7 @@ Texture2D<float4> PreviousDiffuse[];
 [vk::constant_id(2)] const uint TRANSPARENT_PRIMITIVE_ID_OFFSET;
 [vk::constant_id(3)] const uint EMISSIVE_TRIANGLES_COUNT;
 [vk::constant_id(4)] const uint MULTIPLE_IMPORTANCE_SAMPLING;
+[vk::constant_id(5)] const uint LIGHTMAP_GROUP_COUNT;
 
 float4 SampleAlbedo(float2 uv, uint lightmapGroup)
 {

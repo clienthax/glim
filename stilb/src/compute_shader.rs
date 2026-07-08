@@ -1,6 +1,6 @@
 use std::ffi::CStr;
 
-use ash::vk::{self, Handle};
+use ash::vk::{self, Handle, SpecializationInfo};
 use shaders::*;
 
 use crate::{
@@ -171,43 +171,71 @@ pub struct BakeBouncePushConstants {
     pub pad2: u32,
 }
 
-fn create_specialization_map_entries() -> [vk::SpecializationMapEntry; 5] {
+pub fn create_specialization_map_entries() -> [vk::SpecializationMapEntry; 6] {
     let size = std::mem::size_of::<u32>();
 
-    let map_entries = [
+    [
         vk::SpecializationMapEntry {
             constant_id: 0,
-            offset: 0 * (size as u32),
-            size: size,
+            offset: 0 * size as u32,
+            size,
         },
         vk::SpecializationMapEntry {
             constant_id: 1,
-            offset: 1 * (size as u32),
-            size: size,
+            offset: 1 * size as u32,
+            size,
         },
         vk::SpecializationMapEntry {
             constant_id: 2,
-            offset: 2 * (size as u32),
-            size: size,
+            offset: 2 * size as u32,
+            size,
         },
         vk::SpecializationMapEntry {
             constant_id: 3,
-            offset: 3 * (size as u32),
-            size: size,
+            offset: 3 * size as u32,
+            size,
         },
         vk::SpecializationMapEntry {
             constant_id: 4,
-            offset: 4 * (size as u32),
-            size: size,
+            offset: 4 * size as u32,
+            size,
         },
-    ];
-    map_entries
+        vk::SpecializationMapEntry {
+            constant_id: 5,
+            offset: 5 * size as u32,
+            size,
+        },
+    ]
 }
+
+pub struct SpecializationConstants {
+    pub use_camera: u32, // unused
+    pub light_falloff_type: u32,
+    pub transparent_primitive_offset: u32,
+    pub emissive_triangles_count: u32,
+    pub multiple_importance_sampling: u32,
+    pub lightmap_group_count: u32,
+}
+
+// fn create_specialization_constants(
+//     mis: bool,
+//     light_falloff_type: LightFalloffType,
+//     transparent_primitive_offset: u32,
+//     emissive_triangles_count: u32,
+// ) -> [u32; 5] {
+//     let mis: u32 = if mis { 1 } else { 0 };
+//     [
+//         0,
+//         light_falloff_type as u32,
+//         transparent_primitive_offset,
+//         emissive_triangles_count,
+//         mis,
+//     ]
+// }
 
 pub fn load_init_from_camera_shader(
     vk: &VulkanContext,
-    lightmap_groups: u32,
-    transparent_primitive_offset: u32,
+    constants: &SpecializationConstants,
 ) -> ComputeShader {
     let mut bindings = Vec::new();
 
@@ -215,19 +243,11 @@ pub fn load_init_from_camera_shader(
     bind_tlas(&mut bindings);
     bind_indices(&mut bindings);
     bind_vertices(&mut bindings);
-    bind_albedos(&mut bindings, lightmap_groups);
+    bind_albedos(&mut bindings, constants.lightmap_group_count);
     bind_sampler(&mut bindings);
 
-    let size = std::mem::size_of::<u32>();
-    let map_entries = [vk::SpecializationMapEntry {
-        constant_id: 2,
-        offset: 0 * (size as u32),
-        size: size,
-    }];
-
-    let data = [transparent_primitive_offset];
-    let data_bytes = as_bytes(&data);
-
+    let map_entries = create_specialization_map_entries();
+    let data_bytes = as_bytes(constants);
     let specialization_info = vk::SpecializationInfo::default()
         .map_entries(&map_entries)
         .data(data_bytes);
@@ -353,19 +373,14 @@ pub fn update_init_from_camera_shader(
 
 pub fn load_preview_shader(
     vk: &VulkanContext,
-    use_camera: bool,
-    light_falloff_type: LightFalloffType,
-    lightmap_group_count: u32,
-    transparent_primitive_offset: u32,
-    emissive_triangles_count: u32,
-    mis: bool,
+    constants: &SpecializationConstants,
 ) -> ComputeShader {
     let mut bindings = Vec::new();
 
     bind_tlas(&mut bindings);
     bind_visibility(&mut bindings);
-    bind_albedos(&mut bindings, lightmap_group_count);
-    bind_emissions(&mut bindings, lightmap_group_count);
+    bind_albedos(&mut bindings, constants.lightmap_group_count);
+    bind_emissions(&mut bindings, constants.lightmap_group_count);
     bind_lightmap_diffuse(&mut bindings);
     bind_sampler(&mut bindings);
     bind_indices(&mut bindings);
@@ -374,20 +389,7 @@ pub fn load_preview_shader(
     bind_emissive_triangles(&mut bindings);
 
     let map_entries = create_specialization_map_entries();
-
-    let use_camera: u32 = if use_camera { 1 } else { 0 };
-    let mis: u32 = if mis { 1 } else { 0 };
-    let data = [
-        use_camera,
-        light_falloff_type as u32,
-        transparent_primitive_offset,
-        emissive_triangles_count,
-        mis,
-    ];
-    let data_bytes = as_bytes(&data);
-
-    debug_assert!(data.len() == map_entries.len());
-
+    let data_bytes = as_bytes(constants);
     let specialization_info = vk::SpecializationInfo::default()
         .map_entries(&map_entries)
         .data(data_bytes);
@@ -409,18 +411,14 @@ pub fn load_preview_shader(
 
 pub fn load_bake_direct_shader(
     vk: &VulkanContext,
-    light_falloff_type: LightFalloffType,
-    lightmap_group_count: u32,
-    transparent_primitive_offset: u32,
-    emissive_triangles_count: u32,
-    mis: bool,
+    constants: &SpecializationConstants,
 ) -> ComputeShader {
     let mut bindings = Vec::new();
 
     bind_tlas(&mut bindings);
     bind_visibility(&mut bindings);
-    bind_albedos(&mut bindings, lightmap_group_count);
-    bind_emissions(&mut bindings, lightmap_group_count);
+    bind_albedos(&mut bindings, constants.lightmap_group_count);
+    bind_emissions(&mut bindings, constants.lightmap_group_count);
     bind_lightmap_diffuse(&mut bindings);
     bind_sampler(&mut bindings);
     bind_indices(&mut bindings);
@@ -429,20 +427,7 @@ pub fn load_bake_direct_shader(
     bind_emissive_triangles(&mut bindings);
 
     let map_entries = create_specialization_map_entries();
-
-    let mis: u32 = if mis { 1 } else { 0 };
-
-    let data = [
-        0,
-        light_falloff_type as u32,
-        transparent_primitive_offset,
-        emissive_triangles_count,
-        mis,
-    ];
-    let data_bytes = as_bytes(&data);
-
-    debug_assert!(data.len() == map_entries.len());
-
+    let data_bytes = as_bytes(constants);
     let specialization_info = vk::SpecializationInfo::default()
         .map_entries(&map_entries)
         .data(data_bytes);
@@ -462,16 +447,23 @@ pub fn load_bake_direct_shader(
     )
 }
 
-pub fn load_adjust_samples_shader(vk: &VulkanContext, lightmap_group_count: u32) -> ComputeShader {
+pub fn load_adjust_samples_shader(
+    vk: &VulkanContext,
+    constants: &SpecializationConstants,
+) -> ComputeShader {
     let mut bindings = Vec::new();
 
     bind_tlas(&mut bindings);
     bind_visibility(&mut bindings);
     bind_indices(&mut bindings);
     bind_vertices(&mut bindings);
-    bind_albedos(&mut bindings, lightmap_group_count);
+    bind_albedos(&mut bindings, constants.lightmap_group_count);
 
-    let specialization_info = vk::SpecializationInfo::default();
+    let map_entries = create_specialization_map_entries();
+    let data_bytes = as_bytes(constants);
+    let specialization_info = vk::SpecializationInfo::default()
+        .map_entries(&map_entries)
+        .data(data_bytes);
 
     let push_constant_ranges = [];
 
@@ -486,34 +478,21 @@ pub fn load_adjust_samples_shader(vk: &VulkanContext, lightmap_group_count: u32)
 
 pub fn load_bake_bounce_shader(
     vk: &VulkanContext,
-    light_falloff_type: LightFalloffType,
-    lightmap_group_count: u32,
-    transparent_primitive_offset: u32,
+    constants: &SpecializationConstants,
 ) -> ComputeShader {
     let mut bindings = Vec::new();
 
     bind_tlas(&mut bindings);
     bind_visibility(&mut bindings);
-    bind_albedos(&mut bindings, lightmap_group_count);
+    bind_albedos(&mut bindings, constants.lightmap_group_count);
     bind_lightmap_diffuse(&mut bindings);
     bind_sampler(&mut bindings);
     bind_indices(&mut bindings);
     bind_vertices(&mut bindings);
-    bind_previous_diffuse(&mut bindings, lightmap_group_count);
+    bind_previous_diffuse(&mut bindings, constants.lightmap_group_count);
 
     let map_entries = create_specialization_map_entries();
-
-    let data = [
-        0,
-        light_falloff_type as u32,
-        transparent_primitive_offset,
-        0,
-        0,
-    ];
-    let data_bytes = as_bytes(&data);
-
-    debug_assert!(data.len() == map_entries.len());
-
+    let data_bytes = as_bytes(constants);
     let specialization_info = vk::SpecializationInfo::default()
         .map_entries(&map_entries)
         .data(data_bytes);
@@ -535,20 +514,19 @@ pub fn load_bake_bounce_shader(
 
 pub fn load_bake_sh_shader(
     vk: &VulkanContext,
-    lightmap_group_count: u32,
-    light_falloff_type: LightFalloffType,
+    constants: &SpecializationConstants,
 ) -> ComputeShader {
     let mut bindings = Vec::new();
 
     bind_tlas(&mut bindings);
-    bind_albedos(&mut bindings, lightmap_group_count);
-    bind_emissions(&mut bindings, lightmap_group_count);
+    bind_albedos(&mut bindings, constants.lightmap_group_count);
+    bind_emissions(&mut bindings, constants.lightmap_group_count);
     bind_sampler(&mut bindings);
     bind_probe_sh(&mut bindings);
     bind_indices(&mut bindings);
     bind_vertices(&mut bindings);
     bind_lights(&mut bindings);
-    bind_previous_diffuse(&mut bindings, lightmap_group_count);
+    bind_previous_diffuse(&mut bindings, constants.lightmap_group_count);
 
     let push_constant_ranges = [vk::PushConstantRange {
         stage_flags: vk::ShaderStageFlags::COMPUTE,
@@ -556,16 +534,8 @@ pub fn load_bake_sh_shader(
         size: std::mem::size_of::<BakeSHPushConstants>() as u32,
     }];
 
-    let size = std::mem::size_of::<u32>();
-    let map_entries = [vk::SpecializationMapEntry {
-        constant_id: 1,
-        offset: 0 * (size as u32),
-        size: size,
-    }];
-
-    let data = [light_falloff_type as u32];
-    let data_bytes = as_bytes(&data);
-
+    let map_entries = create_specialization_map_entries();
+    let data_bytes = as_bytes(constants);
     let specialization_info = vk::SpecializationInfo::default()
         .map_entries(&map_entries)
         .data(data_bytes);

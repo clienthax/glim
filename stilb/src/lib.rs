@@ -20,7 +20,7 @@ use crate::{
         ComputeShader, PreviewPushConstants, load_init_from_camera_shader, load_preview_shader,
         update_init_from_camera_shader, update_preview_shader,
     },
-    graphics_shader::{VisibilityPushConstants, create_visibility_shader},
+    graphics_shader::{VisibilityPushConstants, load_visibility_shader},
     lights::Light,
     math::Vector3,
     mesh::{GpuMesh, Mesh, VulkanAs, create_tlas},
@@ -87,6 +87,8 @@ pub struct Stilb {
     pub staging_buffer: Buffer,
 
     pub render_target: RenderTarget,
+
+    pub constants: SpecializationConstants,
 }
 
 impl Drop for Stilb {
@@ -198,9 +200,8 @@ fn render_visibility_from_lightmap(app: &mut Stilb, width: u32, height: u32, gro
     let visibility = &app.render_target.visibility;
 
     // todo create shader once
-    let groups_count = app.groups.len() as u32;
-    let mut shader = create_visibility_shader(vk, visibility, groups_count, false);
-    let mut shader_convervative = create_visibility_shader(vk, visibility, groups_count, true);
+    let mut shader = load_visibility_shader(vk, visibility, false, &app.constants);
+    let mut shader_convervative = load_visibility_shader(vk, visibility, true, &app.constants);
 
     let albedos: Vec<vk::ImageView> = app.groups.iter().map(|x| x.albedo.view()).collect();
 
@@ -499,19 +500,19 @@ fn initialize_render(app: &mut Stilb) {
 
     extract_emissive_triangles(app);
 
-    app.preview_shader = load_preview_shader(
-        &app.vk,
-        app.config.is_preview,
-        app.config.light_falloff,
-        app.groups.len() as u32,
-        (app.opaque_mesh.indices.len() / 3) as u32,
-        app.emissive_triangles.len() as u32,
-        app.config.mis,
-    );
+    app.constants = SpecializationConstants {
+        use_camera: 0,
+        light_falloff_type: app.config.light_falloff as u32,
+        transparent_primitive_offset: (app.opaque_mesh.indices.len() / 3) as u32,
+        emissive_triangles_count: app.emissive_triangles.len() as u32,
+        multiple_importance_sampling: app.config.mis as u32,
+        lightmap_group_count: app.groups.len() as u32,
+    };
+
+    app.preview_shader = load_preview_shader(&app.vk, &app.constants);
 
     if app.probes.len() > 0 {
-        app.bake_probes_shader =
-            load_bake_sh_shader(&app.vk, app.groups.len() as u32, app.config.light_falloff);
+        app.bake_probes_shader = load_bake_sh_shader(&app.vk, &app.constants);
 
         let flags = vk::BufferUsageFlags::TRANSFER_DST
             | vk::BufferUsageFlags::STORAGE_BUFFER
@@ -708,11 +709,7 @@ fn render_preview(app: &mut Stilb) {
 
     let preview_settings = app.config.preview_settings.clone();
 
-    app.init_from_camera_shader = load_init_from_camera_shader(
-        &app.vk,
-        app.groups.len() as u32,
-        (app.opaque_mesh.indices.len() / 3) as u32,
-    );
+    app.init_from_camera_shader = load_init_from_camera_shader(&app.vk, &app.constants);
 
     update_render_target(app, &preview_settings, 0);
 
@@ -844,16 +841,9 @@ fn render_lightmaps(app: &mut Stilb) {
         None
     };
 
-    app.adjust_samples_shader = load_adjust_samples_shader(&app.vk, app.groups.len() as u32);
+    app.adjust_samples_shader = load_adjust_samples_shader(&app.vk, &app.constants);
 
-    let mut bake_direct_shader = load_bake_direct_shader(
-        &app.vk,
-        app.config.light_falloff,
-        app.groups.len() as u32,
-        (app.opaque_mesh.indices.len() / 3) as u32,
-        app.emissive_triangles.len() as u32,
-        app.config.mis,
-    );
+    let mut bake_direct_shader = load_bake_direct_shader(&app.vk, &app.constants);
 
     let lights_count = app.cpu_lights.len() as u32;
 
@@ -1023,12 +1013,7 @@ fn render_lightmaps(app: &mut Stilb) {
 
     bake_direct_shader.destroy(&app.vk);
 
-    let mut bake_bounce_shader = load_bake_bounce_shader(
-        &app.vk,
-        app.config.light_falloff,
-        app.groups.len() as u32,
-        (app.opaque_mesh.indices.len() / 3) as u32,
-    );
+    let mut bake_bounce_shader = load_bake_bounce_shader(&app.vk, &app.constants);
 
     for bounce_index in 0..bounce_count {
         let previous: Vec<vk::ImageView> = previous_diffuses.iter().map(|x| x.view()).collect();
@@ -2660,6 +2645,15 @@ impl Stilb {
             vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT,
         );
 
+        let constants = SpecializationConstants {
+            use_camera: 0,
+            light_falloff_type: 0,
+            transparent_primitive_offset: 0,
+            emissive_triangles_count: 0,
+            multiple_importance_sampling: 0,
+            lightmap_group_count: 0,
+        };
+
         Self {
             vk,
             opaque_mesh,
@@ -2686,6 +2680,7 @@ impl Stilb {
             emissive_triangles_buffer: Buffer::null(),
             staging_buffer,
             adjust_samples_shader: ComputeShader::null(),
+            constants,
         }
     }
 }
