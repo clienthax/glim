@@ -1478,13 +1478,10 @@ fn encode_directional_lightmap(diffuse: &[f32], dir: &mut [f32]) {
 
         let normalized_dir = (v / luminance).normalize();
 
-        let directionality = (v.length() / luminance).clamp(0.0, 1.0);
-
         dir[index + 0] = normalized_dir.x * 0.5 + 0.5;
         dir[index + 1] = normalized_dir.y * 0.5 + 0.5;
         dir[index + 2] = normalized_dir.z * 0.5 + 0.5;
-        // dir[index + 3] = normal.dot(Vector3::ZERO - normalized_dir).clamp(0.0, 1.0) * 0.5 + 0.5;
-        dir[index + 3] = directionality;
+        dir[index + 3] = normal.dot(normalized_dir).clamp(0.0, 1.0) * 0.5 + 0.5;
     }
 }
 

@@ -37,3 +37,5 @@
 - [ ] Preview crashes when closing on linux
 - [ ] Preview window doesnt work on KDE Wayland (Fedora)
 - [ ] Bake reflection probes button starts the built-in baker if the lighting is not baked which could cause confusion
+- [ ] Bakery is removing directional lightmaps
+- [ ] Double sided global illumination doesnt work?

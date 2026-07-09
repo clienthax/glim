@@ -124,24 +124,42 @@ namespace stilb
 
                     var assets = new UnityEngine.Object[] { diffuseTex };
                     string path;
-                    if (groupAsset.format == LightmapSaveFormat.EXR)
+
+                    if (directional)
                     {
-                        string metaPath = Path.Combine(outputFolder, $"{fileName}.exr.meta");
+                        string metaPath = Path.Combine(outputFolder, $"{fileName}.png.meta");
                         if (!File.Exists(metaPath))
                         {
                             var guid = GUID.Generate().ToString();
                             var yaml = CreateTextureImporterMeta(guid);
                             File.WriteAllText(metaPath, yaml);
                         }
-                        path = Path.Combine(outputFolder, $"{fileName}.exr");
-                        var bytes = diffuseTex.EncodeToEXR(groupAsset.exrFlags);
+                        path = Path.Combine(outputFolder, $"{fileName}.png");
+                        var bytes = diffuseTex.EncodeToPNG();
                         File.WriteAllBytes(path, bytes);
                     }
-                    else // asset
+                    else
                     {
-                        path = Path.Combine(outputFolder, $"{fileName}.asset");
-                        InternalEditorUtility.SaveToSerializedFileAndForget(assets, path, false);
+                        if (groupAsset.format == LightmapSaveFormat.EXR)
+                        {
+                            string metaPath = Path.Combine(outputFolder, $"{fileName}.exr.meta");
+                            if (!File.Exists(metaPath))
+                            {
+                                var guid = GUID.Generate().ToString();
+                                var yaml = CreateTextureImporterMeta(guid);
+                                File.WriteAllText(metaPath, yaml);
+                            }
+                            path = Path.Combine(outputFolder, $"{fileName}.exr");
+                            var bytes = diffuseTex.EncodeToEXR(groupAsset.exrFlags);
+                            File.WriteAllBytes(path, bytes);
+                        }
+                        else // asset
+                        {
+                            path = Path.Combine(outputFolder, $"{fileName}.asset");
+                            InternalEditorUtility.SaveToSerializedFileAndForget(assets, path, false);
+                        }
                     }
+
 
 
                     AssetDatabase.ImportAsset(path);
@@ -176,7 +194,6 @@ namespace stilb
                     element.FindPropertyRelative("m_DirLightmap").objectReferenceValue = lightmapDatas[i].lightmapDir;
                     element.FindPropertyRelative("m_ShadowMask").objectReferenceValue = lightmapDatas[i].shadowMask;
                 }
-
 
                 lda.FindProperty("m_LightmapsMode").intValue = hasDirectional ?
                     (int)LightmapsMode.CombinedDirectional : (int)LightmapsMode.NonDirectional;
@@ -231,6 +248,9 @@ namespace stilb
                 lda2.ApplyModifiedPropertiesWithoutUndo();
                 Lightmapping.lightingDataAsset = newLda;
                 EditorSceneManager.MarkSceneDirty(_context.scene);
+
+                LightmapSettings.lightmaps = lightmapDatas.ToArray();
+                LightmapSettings.lightmapsMode = hasDirectional ? LightmapsMode.CombinedDirectional : LightmapsMode.NonDirectional;
 
                 LightmapBakerEditor.BakeAllReflectionProbesSnapshots(_context.scene, _context.reflectionProbesSuperSampling ? 2 : 1, _context.reflectionProbesSpecular);
             }
