@@ -1211,6 +1211,7 @@ fn render_lightmaps(app: &mut Stilb) {
             let src = &directional_pixels_temp;
             let dst = &mut group.lightmap_directional;
 
+            // .w stores normal so skip that
             for i in 0..(group.settings.width * group.settings.height) as usize {
                 let i = i * 4;
 
