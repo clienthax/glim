@@ -78,6 +78,12 @@ fn main() {
         dst: "init_from_bake_fragment.spv".into(),
     });
 
+    shaders.push(Shader {
+        ty: ShaderType::Compute,
+        src: "compaction_mask.slang".into(),
+        dst: "compaction_mask.spv".into(),
+    });
+
     for shader in shaders {
         let shader_path = shader_dir.join(shader.src);
         let spv_path = out_dir.join(shader.dst);

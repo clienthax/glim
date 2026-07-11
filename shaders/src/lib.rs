@@ -1,5 +1,7 @@
 // https://jack.wrenn.fyi/blog/include-transmute/
 
+use std::path::PathBuf;
+
 macro_rules! include_transmute {
     ($file:expr, $type:ty) => {
         unsafe { core::mem::transmute(*include_bytes!($file)) }
@@ -93,4 +95,24 @@ pub fn get_init_from_bake_vertex_shader() -> &'static [u32] {
     );
 
     &SHADER
+}
+
+pub enum ShaderName {
+    CompactionMask,
+}
+
+const COMPACTION_MASK_BYTES: &[u8] =
+    include_bytes!(concat!(env!("OUT_DIR"), "/compaction_mask.spv"));
+
+pub fn load_shader_bytes(name: ShaderName) -> Vec<u32> {
+    let bytes = match name {
+        ShaderName::CompactionMask => COMPACTION_MASK_BYTES,
+    };
+
+    let aligned = bytes
+        .chunks_exact(4)
+        .map(|b| u32::from_ne_bytes(b.try_into().unwrap()))
+        .collect();
+
+    aligned
 }

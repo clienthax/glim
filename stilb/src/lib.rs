@@ -1,6 +1,5 @@
 use ash::vk::{self, Handle};
 use std::io::{self, Write};
-use std::mem;
 use std::{ptr, time::Duration};
 
 use glfw_sys::{
@@ -16,6 +15,7 @@ use crate::lights::light_buffer_flags;
 use crate::math::Vector2;
 use crate::seams::{Seam, fix_seams, inpaint};
 use crate::sh::SHProbeL2;
+use crate::shaders::compaction_mask::{load_shader_compaction_mask, update_shader_compaction_mask};
 use crate::{
     camera::Camera,
     compute_shader::{
@@ -45,6 +45,7 @@ mod pack;
 mod seams;
 mod sh;
 mod shader_bindings;
+mod shaders;
 mod test;
 mod texture2d;
 mod vulkan_cmd;
@@ -825,7 +826,7 @@ fn render_lightmaps3(app: &mut Stilb) {
     // let emissions: Vec<vk::ImageView> = app.groups.iter().map(|x| x.emission.view()).collect();
 
     let max_pixels_size =
-        (max_resolution.0 * max_resolution.1 * mem::size_of::<f32>() as u32) as vk::DeviceSize;
+        (max_resolution.0 * max_resolution.1 * std::mem::size_of::<f32>() as u32) as vk::DeviceSize;
 
     let mut visibility_expanded = Texture2D::new(
         &app.vk,
@@ -840,14 +841,34 @@ fn render_lightmaps3(app: &mut Stilb) {
         String::from("Visibility"),
     );
 
-    let mut visibility_convervative =
+    let mut visibility_shader =
         load_visibility_shader(&mut app.vk, &visibility_expanded, true, &app.constants);
 
     update_visibility_shader(
         &app.vk,
-        &visibility_convervative,
+        &visibility_shader,
         app.gpu_mesh.index_buffer.buffer,
         app.gpu_mesh.vertex_buffer.buffer,
+    );
+
+    let mut compaction_shader = load_shader_compaction_mask(&app.vk, &app.constants);
+
+    let mut compaction_mask = Buffer::empty(
+        &app.vk,
+        "Compaction Mask".to_owned(),
+        max_pixels_size / 32,
+        vk::BufferUsageFlags::TRANSFER_DST
+            | vk::BufferUsageFlags::STORAGE_BUFFER
+            | vk::BufferUsageFlags::SHADER_DEVICE_ADDRESS
+            | vk::BufferUsageFlags::TRANSFER_SRC,
+        vk::MemoryPropertyFlags::DEVICE_LOCAL,
+    );
+
+    update_shader_compaction_mask(
+        &app.vk,
+        &compaction_shader,
+        visibility_expanded.view(),
+        compaction_mask.buffer,
     );
 
     let clear_values = [vk::ClearValue {
@@ -860,8 +881,8 @@ fn render_lightmaps3(app: &mut Stilb) {
     let group = &app.groups[group_index].settings;
 
     let mut render_pass_begin = vk::RenderPassBeginInfo {
-        render_pass: visibility_convervative.render_pass,
-        framebuffer: visibility_convervative.framebuffer,
+        render_pass: visibility_shader.render_pass,
+        framebuffer: visibility_shader.framebuffer,
         render_area: vk::Rect2D {
             offset: vk::Offset2D { x: 0, y: 0 },
             extent: vk::Extent2D {
@@ -883,15 +904,15 @@ fn render_lightmaps3(app: &mut Stilb) {
         vk.cmd_bind_pipeline(
             cmd,
             vk::PipelineBindPoint::GRAPHICS,
-            visibility_convervative.pipeline,
+            visibility_shader.pipeline,
         );
 
         vk.cmd_bind_descriptor_sets(
             cmd,
             vk::PipelineBindPoint::GRAPHICS,
-            visibility_convervative.pipeline_layout,
+            visibility_shader.pipeline_layout,
             0,
-            &[visibility_convervative.descriptor_set],
+            &[visibility_shader.descriptor_set],
             &[],
         );
 
@@ -904,7 +925,7 @@ fn render_lightmaps3(app: &mut Stilb) {
         let constants_bytes = as_bytes(&push);
         vk.cmd_push_constants(
             cmd,
-            visibility_convervative.pipeline_layout,
+            visibility_shader.pipeline_layout,
             vk::ShaderStageFlags::FRAGMENT | vk::ShaderStageFlags::VERTEX,
             0,
             &constants_bytes,
@@ -938,32 +959,50 @@ fn render_lightmaps3(app: &mut Stilb) {
         vk.cmd_draw(cmd, mesh.index_len * 3, 1, 0, 0);
 
         vk.cmd_end_render_pass(cmd);
+
+        // compaction
+
+        vk.cmd_bind_pipeline(
+            cmd,
+            vk::PipelineBindPoint::COMPUTE,
+            compaction_shader.pipeline,
+        );
+
+        vk.cmd_bind_descriptor_sets(
+            cmd,
+            vk::PipelineBindPoint::COMPUTE,
+            compaction_shader.pipeline_layout,
+            0,
+            &[compaction_shader.descriptor_set],
+            &[],
+        );
+
+        let groups_x = (group.width + 63) / 64;
+        let groups_y = 1;
+        vk.cmd_dispatch(cmd, groups_x, groups_y, 1);
     }
 
     app.vk.end_single_use_cmd(cmd);
-    unsafe {
-        app.vk
-            .device
-            .queue_wait_idle(app.vk.graphics_queue)
-            .unwrap()
-    };
+    unsafe { app.vk.device.queue_wait_idle(app.vk.compute_queue).unwrap() };
 
-    let mut pixels = Vec::new();
-    visibility_expanded.read_pixels(&app.vk, &mut pixels, &app.staging_buffer);
+    // let mut pixels = Vec::new();
+    // visibility_expanded.read_pixels(&app.vk, &mut pixels, &app.staging_buffer);
 
-    visibility_convervative.destroy(&app.vk);
+    visibility_shader.destroy(&app.vk);
+    compaction_shader.destroy(&app.vk);
+    compaction_mask.destroy(&app.vk);
     visibility_expanded.destroy(&app.vk);
 
-    let readback_data = LightmapReadbackData {
-        group_index: group_index as u32,
-        ty: 0,
-        pixels: pixels.as_ptr(),
-        pixels_count: pixels.len() as u32,
-        width: group.width,
-        height: group.height,
-    };
+    // let readback_data = LightmapReadbackData {
+    //     group_index: group_index as u32,
+    //     ty: 0,
+    //     pixels: pixels.as_ptr(),
+    //     pixels_count: pixels.len() as u32,
+    //     width: group.width,
+    //     height: group.height,
+    // };
 
-    (app.config.lightmap_read_callback)(readback_data);
+    // (app.config.lightmap_read_callback)(readback_data);
 }
 
 // fn render_lightmaps(app: &mut Stilb) {
