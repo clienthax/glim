@@ -1286,7 +1286,7 @@ fn render_lightmaps(app: &mut Stilb) {
             let start_time = std::time::Instant::now();
             let backface_threshold = 0.0;
 
-            // inpaint(pixels, width, height, backface_threshold, 16);
+            inpaint(pixels, width, height, backface_threshold, 16);
 
             let now = std::time::Instant::now();
             let elapsed = now.duration_since(start_time).as_secs_f32();
