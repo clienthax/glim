@@ -889,7 +889,7 @@ fn render_lightmaps3(app: &mut Stilb) {
 
     let visibility_clear = [vk::ClearValue {
         color: vk::ClearColorValue {
-            float32: [0.0, 0.0, 0.0, 0.0],
+            uint32: [u32::MAX, 0, 0, 0],
         },
     }];
 
@@ -958,6 +958,34 @@ fn render_lightmaps3(app: &mut Stilb) {
             vk.cmd_draw(cmd, mesh.index_len * 3, 1, 0, 0);
             vk.cmd_end_render_pass(cmd);
 
+            let current_buffer_size =
+                (current_pixel_count * std::mem::size_of::<u32>() / 32) as u64;
+
+            vk.cmd_fill_buffer(
+                cmd,
+                compaction_mask_buffer.buffer,
+                0,
+                current_buffer_size,
+                0,
+            );
+            let clear_barrier = vk::BufferMemoryBarrier::default()
+                .src_access_mask(vk::AccessFlags::TRANSFER_WRITE)
+                .dst_access_mask(vk::AccessFlags::SHADER_READ | vk::AccessFlags::SHADER_WRITE)
+                .src_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+                .dst_queue_family_index(vk::QUEUE_FAMILY_IGNORED)
+                .buffer(compaction_mask_buffer.buffer)
+                .offset(0)
+                .size(current_buffer_size);
+            vk.cmd_pipeline_barrier(
+                cmd,
+                vk::PipelineStageFlags::TRANSFER,
+                vk::PipelineStageFlags::COMPUTE_SHADER,
+                vk::DependencyFlags::empty(),
+                &[],
+                &[clear_barrier],
+                &[],
+            );
+
             // compaction
             vk.cmd_bind_pipeline(
                 cmd,
@@ -1004,7 +1032,7 @@ fn render_lightmaps3(app: &mut Stilb) {
             let regions = vk::BufferCopy {
                 src_offset: 0,
                 dst_offset: 0,
-                size: (current_pixel_count * std::mem::size_of::<u32>() / 32) as u64,
+                size: current_buffer_size,
             };
             vk.cmd_copy_buffer(
                 cmd,

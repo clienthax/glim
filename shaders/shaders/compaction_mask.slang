@@ -29,7 +29,7 @@ struct PushConstants
 
     float4 visibility = VisibilityBuffer[coords];
 
-    bool visible = visibility.a > 0.0;
+    bool visible = asuint(visibility.x) < uint::maxValue;
 
     if (!visible)
     {
