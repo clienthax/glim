@@ -1009,7 +1009,7 @@ fn render_lightmaps3(app: &mut Stilb) {
                 0,
                 &compaction_push_bytes,
             );
-            let groups_x = ((group.width * group.height) + 63) / 64;
+            let groups_x = ((group.width * group.height) + 31) / 32;
             let groups_y = 1;
             vk.cmd_dispatch(cmd, groups_x, groups_y, 1);
 

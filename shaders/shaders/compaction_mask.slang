@@ -5,39 +5,33 @@ PushConstants Push;
 
 struct PushConstants
 {
-    uint width;
-    uint height;
+    uint2 resolution;
     uint pad0;
     uint pad1;
 };
 
-[shader("compute")]
-    [numthreads(64, 1, 1)] void
-    main(uint3 threadID : SV_DispatchThreadID)
+[WaveSize(32)]
+    [numthreads(32, 1, 1)] void
+    main(uint3 threadID : SV_DispatchThreadID, uint3 groupID : SV_GroupID)
 {
-    uint2 resolution = uint2(Push.width, Push.height);
-    uint index = threadID.x;
+    uint2 resolution = Push.resolution;
 
-    if (index >= (resolution.x * resolution.y))
+    bool visible = false;
+
+    if (threadID.x < resolution.x * resolution.y)
     {
-        return;
+        uint2 coords;
+        coords.x = threadID.x % resolution.x;
+        coords.y = threadID.x / resolution.x;
+
+        float4 visibility = VisibilityBuffer[coords];
+        visible = asuint(visibility.x) != uint::maxValue;
     }
 
-    uint2 coords;
-    coords.x = threadID.x % resolution.x;
-    coords.y = threadID.x / resolution.x;
+    uint mask = WaveActiveBallot(visible).x;
 
-    float4 visibility = VisibilityBuffer[coords];
-
-    bool visible = asuint(visibility.x) < uint::maxValue;
-
-    if (!visible)
+    if (WaveIsFirstLane())
     {
-        return;
+        CompactionMaskBuffer[groupID.x] = mask;
     }
-
-    uint bitIndex = index & 31;
-    uint bufferIndex = index >> 5;
-    uint mask = 1u << bitIndex;
-    InterlockedOr(CompactionMaskBuffer[bufferIndex], mask);
 }
