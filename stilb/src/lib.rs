@@ -1020,6 +1020,8 @@ fn render_lightmaps3(app: &mut Stilb) {
     const DEBUG_COMPACTION: bool = true;
     let mut debug_pixels: Vec<f32> = Vec::new();
 
+    let mut compacted_pixels_count = 0;
+
     for group_index in 0..app.groups.len() {
         let group_start = expanded_groups_start[group_index];
 
@@ -1035,6 +1037,8 @@ fn render_lightmaps3(app: &mut Stilb) {
             prefix_sum += bits;
         }
 
+        compacted_pixels_count += prefix_sum;
+
         if DEBUG_COMPACTION {
             for i in 0..pixel_count {
                 let word = i / 32;
@@ -1046,7 +1050,7 @@ fn render_lightmaps3(app: &mut Stilb) {
                 let active = (mask & (1 << bit)) != 0;
 
                 let r = if active {
-                    let rank = mask & ((1u32 << bit) - 1).count_ones();
+                    let rank = (mask & ((1u32 << bit) - 1)).count_ones();
                     let compact_index = offset + rank;
 
                     (compact_index % 32) as f32 / 32.0
@@ -1072,6 +1076,9 @@ fn render_lightmaps3(app: &mut Stilb) {
             (app.config.lightmap_read_callback)(readback_data);
         }
     }
+
+    let reduction = 1.0 - (compacted_pixels_count as f32 / total_pixel_count as f32);
+    println!("Compaction: {}%", reduction * 100.0);
 
     compaction_shader.destroy(&app.vk);
     compaction_buffer.destroy(&app.vk);
