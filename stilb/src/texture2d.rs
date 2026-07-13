@@ -101,10 +101,11 @@ impl Texture2D {
         let view = unsafe { vk.device.create_image_view(&create_info, None) }.unwrap();
 
         let allocated = register_gpu_alloc(mem_reqs.size);
-
+        let mb = mem_reqs.size as f64 / (1024.0 * 1024.0);
         println!(
-            "Created Texture '{:#x}' VRAM: {:.3} MiB ({}) {}x{}",
+            "Created Texture '{:#x}' VRAM:{:.3} MiB (Total: {:.3} MiB) ({}) {}x{}",
             image.as_raw(),
+            mb,
             allocated,
             &name,
             width,

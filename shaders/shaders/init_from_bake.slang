@@ -52,8 +52,8 @@ struct Varyings
     return o;
 }
 
-    [shader("fragment")] uint2 fragment(Varyings varyings)
+    [shader("fragment")] uint fragment(Varyings varyings)
     : SV_Target
 {
-    return uint2(varyings.primitiveID, 0);
+    return varyings.primitiveID;
 }

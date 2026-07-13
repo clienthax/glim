@@ -14,8 +14,8 @@ StructuredBuffer<float4> CWBVHNodes;
 StructuredBuffer<float4> CWBVHTriangles;
 #endif
 
-[[vk::binding(2, 0)]] [[vk::image_format("rg32ui")]]
-RWTexture2D<uint2> VisibilityBuffer;
+[[vk::binding(2, 0)]] [[vk::image_format("r32ui")]]
+RWTexture2D<uint> VisibilityBuffer;
 
 [[vk::binding(3, 0)]]
 Texture2D<float4> Albedo[];

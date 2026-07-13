@@ -110,10 +110,12 @@ impl Buffer {
         };
 
         let allocated = register_gpu_alloc(mem_reqs.size);
+        let mb = mem_reqs.size as f64 / (1024.0 * 1024.0);
 
         println!(
-            "Created Buffer '{:#x}' VRAM: {:.3} MiB ({})",
+            "Created Buffer '{:#x}' VRAM:{:.3} MiB (Total: {:.3} MiB) ({})",
             buffer.as_raw(),
+            mb,
             allocated,
             &name,
         );

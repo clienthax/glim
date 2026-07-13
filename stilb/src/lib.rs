@@ -849,13 +849,13 @@ fn render_lightmaps3(app: &mut Stilb) {
         &app.vk,
         max_resolution.0,
         max_resolution.1,
-        vk::Format::R32G32_UINT,
+        vk::Format::R32_UINT,
         vk::ImageUsageFlags::STORAGE
             | vk::ImageUsageFlags::TRANSFER_SRC
             | vk::ImageUsageFlags::TRANSFER_DST
             | vk::ImageUsageFlags::SAMPLED
             | vk::ImageUsageFlags::COLOR_ATTACHMENT,
-        String::from("Visibility"),
+        String::from("Visibility Expanded"),
     );
 
     let mut visibility_shader_conservative =
