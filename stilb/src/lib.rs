@@ -1188,7 +1188,7 @@ fn render_lightmaps3(app: &mut Stilb) {
         let compaction_push = CompactPushConstants {
             width: group.width,
             height: group.height,
-            offset: expanded_group_offset,
+            offset: expanded_groups_start[group_index] as u32,
             pad1: 0,
         };
         let compaction_push_bytes = as_bytes(&compaction_push);
@@ -1338,7 +1338,7 @@ fn render_lightmaps3(app: &mut Stilb) {
         let compaction_push = CompactPushConstants {
             width: group.width,
             height: group.height,
-            offset: 0, // TODO
+            offset: expanded_groups_start[group_index] as u32,
             pad1: 0,
         };
         let decompact_push_bytes = as_bytes(&compaction_push);

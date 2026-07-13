@@ -66,9 +66,13 @@ float2 BaryFromUV(uint primitiveID, float2 uv)
 
     uint offset = index * 3;
 
-    CompactedDiffuse[offset + 0] = 1;
-    CompactedDiffuse[offset + 1] = 1;
-    CompactedDiffuse[offset + 2] = 1;
+    CompactedDiffuse[offset + 0] = surface.N.x * 0.5 + 0.5;
+    CompactedDiffuse[offset + 1] = surface.N.y * 0.5 + 0.5;
+    CompactedDiffuse[offset + 2] = surface.N.z * 0.5 + 0.5;
+
+    // CompactedDiffuse[offset + 0] = bary.x;
+    // CompactedDiffuse[offset + 1] = bary.y;
+    // CompactedDiffuse[offset + 2] = 1 - bary.x - bary.y;
 
     // float3 positionWS = visibility.xyz;
     // float3 normalWS = UnpackNormalOctahedron(visibility.w);
