@@ -1017,9 +1017,9 @@ fn render_lightmaps3(app: &mut Stilb) {
 
     compaction_shader.destroy(&app.vk);
 
-    // let mut compaction_buffer_cpu = vec![0u32; compaction_buffer.bytes as usize / 4];
+    let mut compaction_buffer_cpu = vec![0u32; compaction_buffer.bytes as usize / 4];
 
-    let compaction_buffer_cpu = unsafe {
+    unsafe {
         let cmd = app.vk.begin_single_use_cmd();
 
         let regions = vk::BufferCopy {
@@ -1036,16 +1036,11 @@ fn render_lightmaps3(app: &mut Stilb) {
 
         app.vk.end_single_use_cmd(cmd);
 
-        // std::ptr::copy_nonoverlapping(
-        //     staging_buffer.ptr as *const u8,
-        //     compaction_buffer_cpu.as_mut_ptr() as *mut u8,
-        //     regions.size as usize,
-        // );
-
-        std::slice::from_raw_parts_mut(
-            staging_buffer.ptr as *mut u32,
-            (compaction_buffer.bytes as usize / 4) as usize,
-        )
+        std::ptr::copy_nonoverlapping(
+            staging_buffer.ptr as *const u8,
+            compaction_buffer_cpu.as_mut_ptr() as *mut u8,
+            regions.size as usize,
+        );
     };
 
     let mut compacted_pixels_count = 0;
@@ -1118,11 +1113,12 @@ fn render_lightmaps3(app: &mut Stilb) {
 
     // copy back the compaction buffer with prefix sum calculated
     unsafe {
-        // std::ptr::copy_nonoverlapping(
-        //     compaction_buffer_cpu.as_ptr() as *const u8,
-        //     staging_buffer.ptr as *mut u8,
-        //     compaction_buffer.bytes as usize,
-        // );
+        std::ptr::copy_nonoverlapping(
+            compaction_buffer_cpu.as_ptr() as *const u8,
+            staging_buffer.ptr as *mut u8,
+            compaction_buffer.bytes as usize,
+        );
+        drop(compaction_buffer_cpu);
 
         let cmd = app.vk.begin_single_use_cmd();
 
@@ -1141,8 +1137,6 @@ fn render_lightmaps3(app: &mut Stilb) {
 
         app.vk.end_single_use_cmd(cmd);
     }
-
-    _ = compaction_buffer_cpu;
 
     let log = app.config.log_callback;
     let reduction = 1.0 - (compacted_pixels_count as f32 / total_pixel_count as f32);
