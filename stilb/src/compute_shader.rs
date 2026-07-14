@@ -927,7 +927,6 @@ pub fn update_bake_bounce_shader(
     tlas: vk::AccelerationStructureKHR,
     target_visibility: vk::ImageView,
     albedos: &[vk::ImageView],
-    previous_diffuse: &[vk::ImageView],
     target_diffuse: vk::ImageView,
     indices: vk::Buffer,
     vertices: vk::Buffer,
@@ -1024,25 +1023,6 @@ pub fn update_bake_bounce_shader(
         ..Default::default()
     };
     write = write.buffer_info(&info);
-    descriptor_writes.push(write);
-
-    // PreviousDiffuse
-    let infos: Vec<vk::DescriptorImageInfo> = previous_diffuse
-        .iter()
-        .map(|tex| vk::DescriptorImageInfo {
-            image_view: *tex,
-            image_layout: vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
-            ..Default::default()
-        })
-        .collect();
-    let mut write = vk::WriteDescriptorSet {
-        dst_set: shader.descriptor_set,
-        dst_binding: 13,
-        dst_array_element: 0,
-        descriptor_type: vk::DescriptorType::SAMPLED_IMAGE,
-        ..Default::default()
-    };
-    write = write.image_info(&infos);
     descriptor_writes.push(write);
 
     // DominantDirection

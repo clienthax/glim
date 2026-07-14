@@ -76,10 +76,10 @@ struct PushConstants
         }
 
         float3 bounceAlbedo = SampleAlbedo(surface.uv, surface.lightmapGroup).rgb;
-        float3 previousDiffuse = SamplePreviousDiffuse(surface.uv, surface.lightmapGroup).rgb;
-        float3 current = previousDiffuse * bounceAlbedo;
-        color.rgb += current;
-        dominantDirection.xyz += ray.D * Luminance(current);
+        // float3 previousDiffuse = SamplePreviousDiffuse(surface.uv, surface.lightmapGroup).rgb;
+        // float3 current = previousDiffuse * bounceAlbedo;
+        // color.rgb += current;
+        // dominantDirection.xyz += ray.D * Luminance(current);
     }
 
     float4 previous = LightmapDiffuse[coords];
@@ -87,20 +87,7 @@ struct PushConstants
     AccumulateColor(previous, sampleIndex, color);
     LightmapDiffuse[coords] = previous;
 
-    uint index = (coords.x + coords.y * resolution.x) * 4;
-    dominantDirection.z = -dominantDirection.z; // unity coords
-
-    // todo temp
-    if (sampleIndex == 0)
-    {
-        DominantDirection[index + 0] = dominantDirection.x;
-        DominantDirection[index + 1] = dominantDirection.y;
-        DominantDirection[index + 2] = dominantDirection.z;
-    }
-    else
-    {
-        DominantDirection[index + 0] += dominantDirection.x;
-        DominantDirection[index + 1] += dominantDirection.y;
-        DominantDirection[index + 2] += dominantDirection.z;
-    }
+    // DominantDirection[index + 0] += dominantDirection.x;
+    // DominantDirection[index + 1] += dominantDirection.y;
+    // DominantDirection[index + 2] += dominantDirection.z;
 }

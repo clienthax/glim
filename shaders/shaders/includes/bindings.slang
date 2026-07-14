@@ -49,9 +49,6 @@ RWTexture2D<float4> NormalsBuffer;
 [[vk::binding(12, 0)]]
 StructuredBuffer<uint> EmissiveTriangles;
 
-[[vk::binding(13, 0)]] [[vk::image_format("rgba32f")]]
-Texture2D<float4> PreviousDiffuse[];
-
 [[vk::binding(14, 0)]]
 RWStructuredBuffer<float> DominantDirection;
 
@@ -105,18 +102,5 @@ float4 SampleEmission(float2 uv, uint lightmapGroup)
 {
     uint index = LIGHTMAP_GROUP_COUNT <= 1 ? 0 : NonUniformResourceIndex(lightmapGroup);
     Texture2D tex = Emission[index];
-    return tex[(uint2)uv];
-}
-
-float4 SamplePreviousDiffuse(float2 uv, uint lightmapGroup)
-{
-    uint index = LIGHTMAP_GROUP_COUNT <= 1 ? 0 : NonUniformResourceIndex(lightmapGroup);
-
-    Texture2D tex = PreviousDiffuse[index];
-
-    // todo for some reason this is flipped
-    float2 resolution;
-    tex.GetDimensions(resolution.x, resolution.y);
-    uv.y = resolution.y - uv.y;
     return tex[(uint2)uv];
 }

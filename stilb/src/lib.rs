@@ -2050,7 +2050,7 @@ fn render_lightmaps3(app: &mut Stilb) {
                 vk.cmd_dispatch(cmd, groups_x, groups_y, 1);
                 app.vk.end_single_use_cmd(cmd);
 
-                // still not quite sure what order is the best
+                // todo still not quite sure what order is the best
                 if group.dilate {
                     let start_time = std::time::Instant::now();
 
