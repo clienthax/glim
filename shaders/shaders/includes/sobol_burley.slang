@@ -185,6 +185,12 @@ uint RNGPixelInit(uint2 coords, SamplingPattern pattern)
     return nested_uniform_scramble_base4(MortonEncode(coords.x, coords.y), seed);
 }
 
+uint RNGPixelInit1D(uint index)
+{
+    uint seed = hash_uint(0);
+    return nested_uniform_scramble_base4(index, seed);
+}
+
 uint3 BlueNoiseIndexing(uint pixelIndex,
                         uint sample,
                         uint sobolIndexMask,

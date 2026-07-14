@@ -1,14 +1,12 @@
 #include "includes/core.slang"
 #include "includes/sobol_burley.slang"
 
-void AdjustSamplePosition(Surface surface, uint primitiveID, inout float4 visibility)
+float3 AdjustSamplePosition(Surface surface, uint primitiveID, float2 bary)
 {
-    // todo encode smooth position
+    bool smoothP = UseSmoothPosition(surface);
 
-    // bool smoothP = UseSmoothPosition(surface);
-
-    // float3 positionWS = smoothP ? surface.smoothP : surface.P;
-    // positionWS = RayOffset(positionWS, surface.Ng);
+    float3 positionWS = smoothP ? surface.smoothP : surface.P;
+    positionWS = RayOffset(positionWS, surface.Ng);
 
     uint i0 = Indices[primitiveID * 3 + 0];
     uint i1 = Indices[primitiveID * 3 + 1];
@@ -43,27 +41,27 @@ void AdjustSamplePosition(Surface surface, uint primitiveID, inout float4 visibi
     float3 rayDirs[4] = {u, -u, v, -v};
 
     Ray leakRay;
-    leakRay.P = RayOffset(surface.P, surface.Ng);
+    leakRay.P = positionWS;
     leakRay.tMin = 0;
     leakRay.tMax = rayLength;
-    Hit hit;
+    Hit leakHit;
 
     [loop] for (int i = 0; i < 4; i++)
     {
         leakRay.D = rayDirs[i];
 
-        if (TraceRay(leakRay, hit))
+        if (TraceRay(leakRay, leakHit))
         {
-            if (!hit.frontFace)
+            if (!leakHit.frontFace)
             {
-                // Surface hitSurf = Surface::Get(hit.primitiveID, hit.bary, true);
-                // positionWS = RayOffset(positionWS + leakRay.D * leakHit.t, hitSurf.Ng);
-                visibility.xy = hit.bary.xy;
-                visibility.z = asfloat(hit.primitiveID);
+                Surface hitSurf = Surface::Get(leakHit.primitiveID, leakHit.bary, true);
+                positionWS = RayOffset(positionWS + leakRay.D * leakHit.t, hitSurf.Ng);
                 break;
             }
         }
     }
+
+    return positionWS;
 }
 
 [[vk::push_constant]]
@@ -94,8 +92,9 @@ struct PushConstants
     uint primitiveID = asuint(visibility.z);
 
     Surface surface = Surface::Get(primitiveID, bary, true);
+    float3 positionWS = AdjustSamplePosition(surface, primitiveID, bary);
 
-    AdjustSamplePosition(surface, primitiveID, visibility);
+    float packed = PackNormalOctahedron(surface.N);
 
-    CompactedVisibility[index] = visibility;
+    CompactedVisibility[index] = float4(positionWS, packed);
 }
