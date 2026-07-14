@@ -13,7 +13,7 @@ use crate::compute_shader::*;
 use crate::graphics_shader::update_visibility_shader;
 use crate::lights::light_buffer_flags;
 use crate::math::Vector2;
-use crate::seams::{Seam, fix_seams, inpaint};
+use crate::seams::{Seam, fix_seams};
 use crate::sh::SHProbeL2;
 use crate::shaders::bake_direct::{
     BakeDirectPushConstants, load_bake_direct_shader, update_bake_direct_shader,
@@ -25,6 +25,7 @@ use crate::shaders::compaction_mask::{
     CompactionPushConstants, load_shader_compaction_mask, update_shader_compaction_mask,
 };
 use crate::shaders::decompact::{load_shader_decompact, update_shader_decompact};
+use crate::shaders::dilate::{DilatePushConstants, load_shader_dilate, update_shader_dilate};
 use crate::{
     camera::Camera,
     compute_shader::{
@@ -1445,6 +1446,8 @@ fn render_lightmaps3(app: &mut Stilb) {
         Some(oidn.unwrap())
     };
 
+    let mut dilate_shader = load_shader_dilate(&app.vk, &app.constants);
+
     for group_index in 0..app.groups.len() {
         let group = &app.groups[group_index].settings;
 
@@ -1506,6 +1509,52 @@ fn render_lightmaps3(app: &mut Stilb) {
                 (log)(LogMessage::message(&message));
             }
 
+            if group.dilate {
+                let start_time = std::time::Instant::now();
+
+                let dilate_push = DilatePushConstants {
+                    width: group.width,
+                    height: group.height,
+                    pad0: 0,
+                    pad1: 0,
+                };
+                let dilate_push_bytes = as_bytes(&dilate_push);
+                let groups_x = (group.width + 7) / 8;
+                let groups_y = (group.height + 7) / 8;
+
+                update_shader_dilate(&app.vk, &dilate_shader, staging_buffer_lightmap.buffer);
+
+                let vk_dev = &app.vk.device;
+                let shader = &dilate_shader;
+                let cmd = app.vk.begin_single_use_cmd();
+                vk_dev.cmd_bind_pipeline(cmd, vk::PipelineBindPoint::COMPUTE, shader.pipeline);
+                vk_dev.cmd_bind_descriptor_sets(
+                    cmd,
+                    vk::PipelineBindPoint::COMPUTE,
+                    shader.pipeline_layout,
+                    0,
+                    &[shader.descriptor_set],
+                    &[],
+                );
+                vk_dev.cmd_push_constants(
+                    cmd,
+                    shader.pipeline_layout,
+                    vk::ShaderStageFlags::COMPUTE,
+                    0,
+                    &dilate_push_bytes,
+                );
+                vk_dev.cmd_dispatch(cmd, groups_x, groups_y, 1);
+                app.vk.end_single_use_cmd(cmd);
+
+                let elapsed = std::time::Instant::now()
+                    .duration_since(start_time)
+                    .as_secs_f32();
+                (log)(LogMessage::message(&format!(
+                    "Dilation complete {}s",
+                    elapsed
+                )));
+            }
+
             if group.fix_seams {
                 let start_time = std::time::Instant::now();
 
@@ -1538,6 +1587,7 @@ fn render_lightmaps3(app: &mut Stilb) {
     }
 
     decompact_shader.destroy(&app.vk);
+    dilate_shader.destroy(&app.vk);
 
     compacted_diffuse.destroy(&app.vk);
     compacted_visibility.destroy(&app.vk);
