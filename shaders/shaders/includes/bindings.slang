@@ -31,9 +31,6 @@ Texture2D<float4> Emission[];
 [[vk::binding(4, 0)]] [[vk::image_format("rgba32f")]]
 RWTexture2D<float4> LightmapDiffuse;
 
-[[vk::binding(6, 0)]]
-SamplerState TextureSampler;
-
 [[vk::binding(7, 0)]]
 RWStructuredBuffer<SHProbeL2> SHProbes;
 

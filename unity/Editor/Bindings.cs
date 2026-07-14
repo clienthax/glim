@@ -14,13 +14,6 @@ namespace stilb
             Unity = 1,
         }
 
-        public enum TextureSamplerFilter : uint
-        {
-            Nearest = 0,
-            Linear = 1,
-        }
-
-
         [StructLayout(LayoutKind.Sequential)]
         public struct StilbConfig
         {
@@ -39,7 +32,6 @@ namespace stilb
             public readonly LightmapReadCallback lightmap_read_callback;
             public readonly ReadbackProbesCallback lightprobes_read_callback;
 
-            public readonly TextureSamplerFilter texture_filter;
             public readonly uint probe_samples;
             public readonly uint probe_bounces;
             public readonly uint light_falloff;
@@ -49,6 +41,7 @@ namespace stilb
             public readonly uint direct_samples;
             public readonly uint indirect_samples;
             public readonly uint bounce_count;
+            public readonly uint lightmap_mode;
 
             public StilbConfig(CoordinateSystem coordinate_system,
                                uint direct_samples,
@@ -59,10 +52,10 @@ namespace stilb
                                LightmapSettings preview_settings,
                                Vector3 camera_position,
                                Vector3 camera_forward,
-                               TextureSamplerFilter texture_filter,
                                uint probe_samples,
                                LightFalloffType falloff,
-                               bool mis)
+                               bool mis,
+                               uint lightmap_mode)
             {
                 this.coordinate_system = coordinate_system;
                 this.is_preview = is_preview;
@@ -73,7 +66,6 @@ namespace stilb
                 this.log_callback = Bake.OnLogCalback;
                 this.lightmap_read_callback = Bake.OnReadbackLightmap;
                 this.lightprobes_read_callback = Bake.OnReadbackLightprobes;
-                this.texture_filter = texture_filter;
                 this.probe_samples = probe_samples;
                 this.probe_bounces = bounce_count;
                 this.direct_samples = direct_samples;
@@ -82,6 +74,7 @@ namespace stilb
                 this.vulkan_validation_layers = false;
                 this.seams_debug = false;
                 this.mis = mis;
+                this.lightmap_mode = lightmap_mode;
 
                 var currentPipeline = GraphicsSettings.currentRenderPipeline;
                 uint autoFalloff = 0;

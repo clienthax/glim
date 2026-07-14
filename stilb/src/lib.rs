@@ -86,8 +86,6 @@ pub struct Stilb {
     pub init_from_camera_shader: ComputeShader,
     pub preview_initialized: bool,
 
-    pub texture_sampler: vk::Sampler,
-
     pub preview_push_constants: PreviewPushConstants,
 
     pub probes: Vec<SHProbeL2>,
@@ -145,8 +143,6 @@ impl Drop for Stilb {
         if !self.emissive_triangles_buffer.buffer.is_null() {
             self.emissive_triangles_buffer.destroy(&self.vk);
         }
-
-        unsafe { self.vk.device.destroy_sampler(self.texture_sampler, None) };
     }
 }
 
@@ -398,7 +394,6 @@ fn render_visibility_from_camera(app: &mut Stilb, width: u32, height: u32) -> Te
         app.gpu_mesh.index_buffer.buffer,
         app.gpu_mesh.vertex_buffer.buffer,
         &albedos,
-        app.texture_sampler,
     );
     visibility
 }
@@ -743,7 +738,6 @@ fn render_preview(app: &mut Stilb) {
         &albedos,
         &emissions,
         diffuse.view(),
-        app.texture_sampler,
         app.gpu_mesh.index_buffer.buffer,
         app.gpu_mesh.vertex_buffer.buffer,
         app.gpu_lights.buffer,
@@ -810,7 +804,6 @@ fn render_preview(app: &mut Stilb) {
                     &albedos,
                     &emissions,
                     diffuse.view(),
-                    app.texture_sampler,
                     app.gpu_mesh.index_buffer.buffer,
                     app.gpu_mesh.vertex_buffer.buffer,
                     app.gpu_lights.buffer,
@@ -1343,7 +1336,12 @@ fn render_lightmaps3(app: &mut Stilb) {
         adjust_sample_shader.destroy(&app.vk);
     }
 
-    let mut compacted_diffuse = Buffer::empty(
+    let lightmap_channels = match app.config.lightmap_mode {
+        LightmapMode::NonDirectional => 3,
+        LightmapMode::Directional => 6,
+    };
+
+    let mut compacted_lightmap = Buffer::empty(
         &app.vk,
         "Diffuse Buffer".to_owned(),
         compacted_pixels_count as u64 * (std::mem::size_of::<f32>() * 3) as u64,
@@ -1366,7 +1364,7 @@ fn render_lightmaps3(app: &mut Stilb) {
         app.gpu_lights.buffer,
         app.emissive_triangles_buffer.buffer,
         compacted_visibility.buffer,
-        compacted_diffuse.buffer,
+        compacted_lightmap.buffer,
     );
 
     let mut bake_direct_push = BakeDirectPushConstants {
@@ -1464,7 +1462,7 @@ fn render_lightmaps3(app: &mut Stilb) {
         &decompact_shader,
         compaction_buffer.buffer,
         staging_buffer_lightmap.buffer,
-        compacted_diffuse.buffer,
+        compacted_lightmap.buffer,
     );
 
     let oidn = Oidn::load();
@@ -1639,7 +1637,7 @@ fn render_lightmaps3(app: &mut Stilb) {
             app.probes_buffer.buffer,
             &albedos,
             &emissions,
-            compacted_diffuse.buffer,
+            compacted_lightmap.buffer,
             app.gpu_mesh.index_buffer.buffer,
             app.gpu_mesh.vertex_buffer.buffer,
             app.gpu_lights.buffer,
@@ -1732,7 +1730,7 @@ fn render_lightmaps3(app: &mut Stilb) {
         staging_buffer_light_probes.destroy(&app.vk);
     }
 
-    compacted_diffuse.destroy(&app.vk);
+    compacted_lightmap.destroy(&app.vk);
     compaction_buffer.destroy(&app.vk);
     group_info_buffer.destroy(&app.vk);
 }
@@ -3740,29 +3738,6 @@ impl Stilb {
 
         let gpu_lights = Buffer::null();
 
-        let filter = if config.texture_filter == TextureSamplerFilter::Linear {
-            vk::Filter::LINEAR
-        } else {
-            vk::Filter::NEAREST
-        };
-
-        let sampler_info = vk::SamplerCreateInfo::default()
-            .mag_filter(filter)
-            .min_filter(filter)
-            .mipmap_mode(vk::SamplerMipmapMode::NEAREST)
-            .address_mode_u(vk::SamplerAddressMode::CLAMP_TO_EDGE)
-            .address_mode_v(vk::SamplerAddressMode::CLAMP_TO_EDGE)
-            .address_mode_w(vk::SamplerAddressMode::CLAMP_TO_EDGE)
-            .mip_lod_bias(0.0)
-            .anisotropy_enable(false)
-            .compare_enable(false)
-            .min_lod(0.0)
-            .max_lod(vk::LOD_CLAMP_NONE)
-            .border_color(vk::BorderColor::FLOAT_OPAQUE_BLACK)
-            .unnormalized_coordinates(false);
-
-        let texture_sampler = unsafe { vk.device.create_sampler(&sampler_info, None).unwrap() };
-
         let preview_push_constants = PreviewPushConstants {
             lights_count: 0,
             sample_index: 0,
@@ -3826,7 +3801,6 @@ impl Stilb {
             init_from_camera_shader,
             preview_initialized: false,
             gpu_lights,
-            texture_sampler,
             preview_push_constants,
             render_target,
             probes: Vec::new(),

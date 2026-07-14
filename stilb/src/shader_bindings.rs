@@ -56,16 +56,6 @@ pub fn bind_emissions(
     });
 }
 
-pub fn bind_sampler(bindings: &mut Vec<vk::DescriptorSetLayoutBinding<'_>>) {
-    bindings.push(vk::DescriptorSetLayoutBinding {
-        binding: 6,
-        descriptor_type: vk::DescriptorType::SAMPLER,
-        descriptor_count: 1,
-        stage_flags: vk::ShaderStageFlags::COMPUTE,
-        ..Default::default()
-    });
-}
-
 pub fn bind_probe_sh(bindings: &mut Vec<vk::DescriptorSetLayoutBinding<'_>>) {
     bindings.push(vk::DescriptorSetLayoutBinding {
         binding: 7,

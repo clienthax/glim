@@ -31,7 +31,6 @@ pub struct StilbConfig {
     pub lightmap_read_callback: LightmapReadCallback,
     pub lightprobes_read_callback: LightprobesReadCallback,
 
-    pub texture_filter: TextureSamplerFilter,
     pub probe_samples: u32,
     pub probe_bounces: u32,
     pub light_falloff: LightFalloffType,
@@ -41,6 +40,14 @@ pub struct StilbConfig {
     pub direct_samples: u32,
     pub indirect_samples: u32,
     pub bounce_count: u32,
+    pub lightmap_mode: LightmapMode,
+}
+
+#[repr(u32)]
+#[derive(Clone)]
+pub enum LightmapMode {
+    NonDirectional = 0,
+    Directional = 1,
 }
 
 #[repr(u32)]

@@ -240,7 +240,6 @@ pub fn load_init_from_camera_shader(
     bind_indices(&mut bindings);
     bind_vertices(&mut bindings);
     bind_albedos(&mut bindings, constants.lightmap_group_count);
-    bind_sampler(&mut bindings);
 
     let map_entries = create_specialization_map_entries();
     let data_bytes = as_bytes(constants);
@@ -271,7 +270,6 @@ pub fn update_init_from_camera_shader(
     indices: vk::Buffer,
     vertices: vk::Buffer,
     albedos: &[vk::ImageView],
-    sampler: vk::Sampler,
 ) {
     let mut descriptor_writes = Vec::new();
 
@@ -350,19 +348,6 @@ pub fn update_init_from_camera_shader(
     };
     write = write.image_info(&infos);
     descriptor_writes.push(write);
-    // TextureSampler
-    let info = [vk::DescriptorImageInfo {
-        sampler,
-        ..Default::default()
-    }];
-    let mut write = vk::WriteDescriptorSet {
-        dst_set: shader.descriptor_set,
-        dst_binding: 6,
-        descriptor_type: vk::DescriptorType::SAMPLER,
-        ..Default::default()
-    };
-    write = write.image_info(&info);
-    descriptor_writes.push(write);
 
     unsafe { vk.device.update_descriptor_sets(&descriptor_writes, &[]) };
 }
@@ -378,7 +363,6 @@ pub fn load_preview_shader(
     bind_albedos(&mut bindings, constants.lightmap_group_count);
     bind_emissions(&mut bindings, constants.lightmap_group_count);
     bind_lightmap_diffuse(&mut bindings);
-    bind_sampler(&mut bindings);
     bind_indices(&mut bindings);
     bind_vertices(&mut bindings);
     bind_lights(&mut bindings);
@@ -448,7 +432,6 @@ pub fn load_bake_bounce_shader(
     bind_visibility(&mut bindings);
     bind_albedos(&mut bindings, constants.lightmap_group_count);
     bind_lightmap_diffuse(&mut bindings);
-    bind_sampler(&mut bindings);
     bind_indices(&mut bindings);
     bind_vertices(&mut bindings);
     bind_previous_diffuse(&mut bindings, constants.lightmap_group_count);
@@ -695,7 +678,6 @@ pub fn update_preview_shader(
     albedos: &[vk::ImageView],
     emissions: &[vk::ImageView],
     target_diffuse: vk::ImageView,
-    sampler: vk::Sampler,
     indices: vk::Buffer,
     vertices: vk::Buffer,
     lights: vk::Buffer,
@@ -766,20 +748,6 @@ pub fn update_preview_shader(
         ..Default::default()
     };
     write = write.image_info(&infos);
-    descriptor_writes.push(write);
-
-    // TextureSampler
-    let info = [vk::DescriptorImageInfo {
-        sampler,
-        ..Default::default()
-    }];
-    let mut write = vk::WriteDescriptorSet {
-        dst_set: shader.descriptor_set,
-        dst_binding: 6,
-        descriptor_type: vk::DescriptorType::SAMPLER,
-        ..Default::default()
-    };
-    write = write.image_info(&info);
     descriptor_writes.push(write);
 
     // LightmapDiffuse
@@ -958,7 +926,6 @@ pub fn update_bake_bounce_shader(
     albedos: &[vk::ImageView],
     previous_diffuse: &[vk::ImageView],
     target_diffuse: vk::ImageView,
-    sampler: vk::Sampler,
     indices: vk::Buffer,
     vertices: vk::Buffer,
     dominant_direction: vk::Buffer,
@@ -1009,20 +976,6 @@ pub fn update_bake_bounce_shader(
         ..Default::default()
     };
     write = write.image_info(&infos);
-    descriptor_writes.push(write);
-
-    // TextureSampler
-    let info = [vk::DescriptorImageInfo {
-        sampler,
-        ..Default::default()
-    }];
-    let mut write = vk::WriteDescriptorSet {
-        dst_set: shader.descriptor_set,
-        dst_binding: 6,
-        descriptor_type: vk::DescriptorType::SAMPLER,
-        ..Default::default()
-    };
-    write = write.image_info(&info);
     descriptor_writes.push(write);
 
     // LightmapDiffuse

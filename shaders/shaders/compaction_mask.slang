@@ -21,10 +21,6 @@ struct PushConstants
 
     if (threadID.x < resolution.x * resolution.y)
     {
-        // uint2 coords;
-        // coords.x = threadID.x % resolution.x;
-        // coords.y = threadID.x / resolution.x;
-
         uint2 coords = IndexToUV(threadID.x);
 
         uint2 visibility = VisibilityBuffer[coords];
