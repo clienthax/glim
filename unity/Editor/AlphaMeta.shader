@@ -1,4 +1,4 @@
-Shader "Hidden/Stibl/AlphaMeta"
+Shader "Hidden/Glim/AlphaMeta"
 {
     Properties
     {
@@ -35,7 +35,8 @@ Shader "Hidden/Stibl/AlphaMeta"
                 float4 vertex : SV_POSITION;
             };
 
-            sampler2D _MainTex;
+            Texture2D _MainTex;
+            SamplerState sampler_MainTex;
             float4 _MainTex_ST;
             float4 _Color;
             float _Cutoff;
@@ -52,7 +53,7 @@ Shader "Hidden/Stibl/AlphaMeta"
 
             float4 frag (v2f i) : SV_Target
             {
-                float4 col = tex2D(_MainTex, i.uv) * _Color;
+                float4 col = _MainTex.SampleLevel(sampler_MainTex, i.uv, 0) * _Color;
                 col.a = col.a > _Cutoff;
 
                 return col;
