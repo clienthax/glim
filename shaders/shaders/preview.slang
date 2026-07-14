@@ -1,3 +1,4 @@
+#define PREVIEW_SHADER
 #include "includes/core.slang"
 #include "includes/sobol_burley.slang"
 
@@ -30,8 +31,7 @@ struct PushConstants
     float4 color = 0.0;
     float3 throughput = float3(1.0);
 
-    // float4 visibility = VisibilityBuffer[coords]; // TODO encode new
-    float4 visibility = 0;
+    float4 visibility = VisibilityBuffer[coords];
 
     uint encoded = asuint(visibility.a);
     if (encoded == 0)

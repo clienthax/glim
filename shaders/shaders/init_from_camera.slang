@@ -1,3 +1,4 @@
+#define PREVIEW_SHADER
 #include "includes/core.slang"
 
 [[vk::push_constant]]
@@ -23,8 +24,7 @@ struct PushConstants
 
     if (coords.x >= resolution.x || coords.y >= resolution.y)
     {
-        // TODO encode new
-        // VisibilityBuffer[coords] = EncodeVisibilityBuffer(float2(0, 0), 0, false, false);
+        VisibilityBuffer[coords] = EncodeVisibilityBuffer(float2(0, 0), 0, false, false);
         return;
     }
 
@@ -62,6 +62,5 @@ struct PushConstants
         result = EncodeVisibilityBuffer(float2(0, 0), 0, false, false);
     }
 
-    // TODO encode new
-    // VisibilityBuffer[coords] = result;
+    VisibilityBuffer[coords] = result;
 }

@@ -272,6 +272,49 @@ bool UseSmoothPosition(Surface surface)
     return false;
 }
 
+float2 BaryFromUV(uint primitiveID, float2 uv)
+{
+    uint i0 = Indices[primitiveID * 3 + 0];
+    uint i1 = Indices[primitiveID * 3 + 1];
+    uint i2 = Indices[primitiveID * 3 + 2];
+
+    Vertex v0 = Vertices[i0];
+    Vertex v1 = Vertices[i1];
+    Vertex v2 = Vertices[i2];
+
+    float2 uv0 = v0.GetUV();
+    float2 uv1 = v1.GetUV();
+    float2 uv2 = v2.GetUV();
+
+    float2 e0 = uv1 - uv0;
+    float2 e1 = uv2 - uv0;
+    float2 p = uv - uv0;
+
+    float det = e0.x * e1.y - e0.y * e1.x;
+
+    if (abs(det) < 1e-8)
+    {
+        return float2(0.0, 0.0);
+    }
+
+    float invDet = 1.0 / det;
+
+    float b1 = (p.x * e1.y - p.y * e1.x) * invDet;
+    float b2 = (-p.x * e0.y + p.y * e0.x) * invDet;
+    float b0 = 1.0 - b1 - b2;
+
+    return float2(b1, b2);
+
+    // float2 bary = saturate(float2(b1, b2));
+    // float sum = bary.x + bary.y;
+    // if (sum > 1.0)
+    // {
+    //     bary /= sum;
+    // }
+
+    // return bary;
+}
+
 // float MISWeight(float pdf1, float pdf2)
 // {
 //     float p1 = pdf1 * pdf1;
