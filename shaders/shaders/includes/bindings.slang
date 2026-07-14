@@ -62,7 +62,7 @@ RWStructuredBuffer<float> DominantDirection;
 RWStructuredBuffer<uint2> CompactionBuffer;
 
 [[vk::binding(16, 0)]]
-RWStructuredBuffer<float> CompactedVisibility;
+RWStructuredBuffer<float4> CompactedVisibility;
 
 [[vk::binding(17, 0)]]
 RWStructuredBuffer<float4> DecompactTarget;

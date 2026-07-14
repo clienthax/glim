@@ -23,19 +23,15 @@ struct PushConstants
         return;
     }
 
-    float3 visibility = float3(CompactedVisibility[index * 3 + 0],
-                               CompactedVisibility[index * 3 + 1],
-                               CompactedVisibility[index * 3 + 2]);
+    float4 visibility = CompactedVisibility[index];
 
     float2 bary = visibility.xy;
     uint primitiveID = asuint(visibility.z);
 
     Surface surface = Surface::Get(primitiveID, bary, true);
 
-    // todo adjust sample positions before this shader
-
     float3 positionWS = RayOffset(surface.P, surface.Ng);
-    float3 normalWS = surface.N;
+    float3 normalWS = UnpackNormalOctahedron(visibility.w);
 
     uint sampleIndex = Push.sampleIndex;
     uint sampleCount = Push.maxSamples;

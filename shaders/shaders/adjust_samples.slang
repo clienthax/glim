@@ -1,7 +1,7 @@
 #include "includes/core.slang"
 #include "includes/sobol_burley.slang"
 
-void AdjustSamplePosition(Surface surface, uint primitiveID, inout float3 visibility)
+void AdjustSamplePosition(Surface surface, uint primitiveID, inout float4 visibility)
 {
     // todo encode smooth position
 
@@ -58,8 +58,8 @@ void AdjustSamplePosition(Surface surface, uint primitiveID, inout float3 visibi
             {
                 // Surface hitSurf = Surface::Get(hit.primitiveID, hit.bary, true);
                 // positionWS = RayOffset(positionWS + leakRay.D * leakHit.t, hitSurf.Ng);
-                visibility.xy = hit.bary.yx; // flip because we hit the back face
-                visibility.z = asuint(hit.primitiveID);
+                visibility.xy = hit.bary.xy;
+                visibility.z = asfloat(hit.primitiveID);
                 break;
             }
         }
@@ -88,9 +88,7 @@ struct PushConstants
         return;
     }
 
-    float3 visibility = float3(CompactedVisibility[index * 3 + 0],
-                               CompactedVisibility[index * 3 + 1],
-                               CompactedVisibility[index * 3 + 2]);
+    float4 visibility = CompactedVisibility[index];
 
     float2 bary = visibility.xy;
     uint primitiveID = asuint(visibility.z);
@@ -99,7 +97,5 @@ struct PushConstants
 
     AdjustSamplePosition(surface, primitiveID, visibility);
 
-    CompactedVisibility[index * 3 + 0] = visibility.x;
-    CompactedVisibility[index * 3 + 1] = visibility.y;
-    CompactedVisibility[index * 3 + 2] = visibility.z;
+    CompactedVisibility[index] = visibility;
 }

@@ -1139,7 +1139,7 @@ fn render_lightmaps3(app: &mut Stilb) {
     let mut compacted_visibility = Buffer::empty(
         &app.vk,
         "Compacted Visibility".to_owned(),
-        compacted_pixels_count as u64 * (std::mem::size_of::<f32>() * 3) as u64,
+        compacted_pixels_count as u64 * (std::mem::size_of::<f32>() * 4) as u64,
         vk::BufferUsageFlags::TRANSFER_DST
             | vk::BufferUsageFlags::STORAGE_BUFFER
             | vk::BufferUsageFlags::TRANSFER_SRC

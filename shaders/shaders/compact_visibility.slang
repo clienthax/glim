@@ -42,9 +42,9 @@ main(uint3 threadID : SV_DispatchThreadID)
         float2 uv = float2(originalCoords) + 0.5;
         float2 bary = BaryFromUV(primitiveID, uv);
 
-        float3 visibility = float3(bary, asfloat(primitiveID));
-        CompactedVisibility[compactIndex * 3 + 0] = visibility.x;
-        CompactedVisibility[compactIndex * 3 + 1] = visibility.y;
-        CompactedVisibility[compactIndex * 3 + 2] = visibility.z;
+        float3 normal = Surface::Get(primitiveID, bary).N;
+
+        float4 visibility = float4(bary, asfloat(primitiveID), PackNormalOctahedron(normal));
+        CompactedVisibility[compactIndex] = visibility;
     }
 }
