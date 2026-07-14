@@ -10,7 +10,7 @@ struct PushConstants
 [[vk::binding(0)]] RWStructuredBuffer<float4> Tex;
 
 #define TILE 8
-#define RADIUS 4
+#define RADIUS 6
 #define HALO (TILE + 2 * RADIUS)
 
 groupshared float4 Cache[HALO * HALO];
@@ -54,22 +54,14 @@ int2 ClampToRes(int2 c)
         return;
     }
 
-    static const int2 OFFSETS[8] = {
-        int2(-1, -1),
-        int2(0, -1),
-        int2(1, -1),
-        int2(-1, 0),
-        int2(1, 0),
-        int2(-1, 1),
-        int2(0, 1),
-        int2(1, 1),
-    };
-
-    [loop] for (int step = 1; step <= RADIUS; step++)
+    float bestDist2 = 1e9;
+    [loop] for (int dy = -RADIUS; dy <= RADIUS; dy++)
     {
-        [unroll] for (int j = 0; j < 8; j++)
+        [loop] for (int dx = -RADIUS; dx <= RADIUS; dx++)
         {
-            int2 sampleLocal = localCoord + OFFSETS[j] * step;
+            if (dx == 0 && dy == 0)
+                continue;
+            int2 sampleLocal = localCoord + int2(dx, dy);
             if (sampleLocal.x < 0 || sampleLocal.y < 0 || sampleLocal.x >= HALO || sampleLocal.y >= HALO)
             {
                 continue;
@@ -77,9 +69,48 @@ int2 ClampToRes(int2 c)
             float4 s = Cache[sampleLocal.y * HALO + sampleLocal.x];
             if (s.a > 0.0)
             {
-                Tex[IndexFromCoords(coords)] = float4(s.rgb, 1.0);
-                return;
+                float d2 = float(dx * dx + dy * dy);
+                bestDist2 = min(bestDist2, d2);
             }
         }
     }
+
+    if (bestDist2 >= 1e9)
+    {
+        return;
+    }
+
+    float bestDist = sqrt(bestDist2);
+    float band = bestDist + 1.5;
+
+    float3 accumColor = float3(0, 0, 0);
+    float accumWeight = 0.0;
+
+    [loop] for (int dy2 = -RADIUS; dy2 <= RADIUS; dy2++)
+    {
+        [loop] for (int dx2 = -RADIUS; dx2 <= RADIUS; dx2++)
+        {
+            if (dx2 == 0 && dy2 == 0)
+                continue;
+            int2 sampleLocal = localCoord + int2(dx2, dy2);
+            if (sampleLocal.x < 0 || sampleLocal.y < 0 || sampleLocal.x >= HALO || sampleLocal.y >= HALO)
+            {
+                continue;
+            }
+            float4 s = Cache[sampleLocal.y * HALO + sampleLocal.x];
+            if (s.a <= 0.0)
+                continue;
+
+            float dist = length(float2(dx2, dy2));
+            if (dist > band)
+                continue;
+
+            float w = 1.0 / (dist * dist + 0.25);
+            accumColor += s.rgb * w;
+            accumWeight += w;
+        }
+    }
+
+    float3 result = accumWeight > 0.0 ? accumColor / accumWeight : float3(0, 0, 0);
+    Tex[IndexFromCoords(coords)] = float4(result, 1.0);
 }
