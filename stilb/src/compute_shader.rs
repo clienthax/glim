@@ -4,7 +4,8 @@ use ash::vk::{self, Handle, SpecializationInfo};
 use shaders::*;
 
 use crate::{
-    LightFalloffType, as_bytes, math::Vector3, shader_bindings::*, texture2d::Texture2D,
+    LightFalloffType, as_bytes, math::Vector3, shader_bindings::*,
+    shaders::bake_direct::BakeDirectPushConstants, texture2d::Texture2D,
     vulkan_context::VulkanContext,
 };
 
@@ -403,7 +404,7 @@ pub fn load_adjust_samples_shader(
     let mut bindings = Vec::new();
 
     bind_tlas(&mut bindings);
-    bind_visibility(&mut bindings);
+    bind_compacted_visibility_buffer(&mut bindings);
     bind_indices(&mut bindings);
     bind_vertices(&mut bindings);
     bind_albedos(&mut bindings, constants.lightmap_group_count);
@@ -414,7 +415,11 @@ pub fn load_adjust_samples_shader(
         .map_entries(&map_entries)
         .data(data_bytes);
 
-    let push_constant_ranges = [];
+    let push_constant_ranges = [vk::PushConstantRange {
+        stage_flags: vk::ShaderStageFlags::COMPUTE,
+        offset: 0,
+        size: std::mem::size_of::<BakeDirectPushConstants>() as u32,
+    }];
 
     ComputeShader::new(
         vk,
@@ -837,7 +842,7 @@ pub fn update_adjust_samples_shader(
     vk: &VulkanContext,
     shader: &ComputeShader,
     tlas: vk::AccelerationStructureKHR,
-    target_visibility: vk::ImageView,
+    compacted_visibility: vk::Buffer,
     albedos: &[vk::ImageView],
     indices: vk::Buffer,
     vertices: vk::Buffer,
@@ -856,19 +861,19 @@ pub fn update_adjust_samples_shader(
         .descriptor_count(1);
     descriptor_writes.push(write);
 
-    // VisibilityBuffer
-    let info = [vk::DescriptorImageInfo {
-        image_view: target_visibility,
-        image_layout: vk::ImageLayout::GENERAL,
-        ..Default::default()
+    // CompactedVisibility
+    let info = [vk::DescriptorBufferInfo {
+        buffer: compacted_visibility,
+        offset: 0,
+        range: vk::WHOLE_SIZE,
     }];
     let mut write = vk::WriteDescriptorSet {
         dst_set: shader.descriptor_set,
-        dst_binding: 2,
-        descriptor_type: vk::DescriptorType::STORAGE_IMAGE,
+        dst_binding: 16,
+        descriptor_type: vk::DescriptorType::STORAGE_BUFFER,
         ..Default::default()
     };
-    write = write.image_info(&info);
+    write = write.buffer_info(&info);
     descriptor_writes.push(write);
 
     // Indices

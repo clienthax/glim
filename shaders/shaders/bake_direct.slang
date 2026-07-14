@@ -23,11 +23,12 @@ struct PushConstants
         return;
     }
 
-    uint2 visibility = CompactedVisibility[index];
-    uint primitiveID = visibility.x;
-    uint2 originalCoords = UnpackCoords(visibility.y);
-    float2 uv = float2(originalCoords) + 0.5;
-    float2 bary = BaryFromUV(primitiveID, uv);
+    float3 visibility = float3(CompactedVisibility[index * 3 + 0],
+                               CompactedVisibility[index * 3 + 1],
+                               CompactedVisibility[index * 3 + 2]);
+
+    float2 bary = visibility.xy;
+    uint primitiveID = asuint(visibility.z);
 
     Surface surface = Surface::Get(primitiveID, bary, true);
 
@@ -41,7 +42,7 @@ struct PushConstants
     uint lightCount = Push.lightCount;
 
     SamplingPattern pattern = SamplingPattern::BlueNoiseFirst;
-    uint pixelSeed = RNGPixelInit(originalCoords, pattern);
+    uint pixelSeed = RNGPixelInit(uint2(surface.uv), pattern);
     uint sobolIndexMask = ~0u;
     uint3 indexing = BlueNoiseIndexing(pixelSeed, sampleIndex, sobolIndexMask, sampleCount, pattern);
 

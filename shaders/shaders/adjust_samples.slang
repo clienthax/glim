@@ -1,15 +1,14 @@
 #include "includes/core.slang"
 #include "includes/sobol_burley.slang"
 
-float3 AdjustSamplePosition(Surface surface, uint primitiveID, float2 bary)
+void AdjustSamplePosition(Surface surface, uint primitiveID, inout float3 visibility)
 {
-    bool smoothP = UseSmoothPosition(surface);
+    // todo encode smooth position
 
-    float3 positionWS = smoothP ? surface.smoothP : surface.P;
-    positionWS = RayOffset(positionWS, surface.Ng);
+    // bool smoothP = UseSmoothPosition(surface);
 
-    float2 resolution;
-    VisibilityBuffer.GetDimensions(resolution.x, resolution.y);
+    // float3 positionWS = smoothP ? surface.smoothP : surface.P;
+    // positionWS = RayOffset(positionWS, surface.Ng);
 
     uint i0 = Indices[primitiveID * 3 + 0];
     uint i1 = Indices[primitiveID * 3 + 1];
@@ -18,9 +17,9 @@ float3 AdjustSamplePosition(Surface surface, uint primitiveID, float2 bary)
     float3 p0 = Vertices[i0].GetPosition();
     float3 p1 = Vertices[i1].GetPosition();
     float3 p2 = Vertices[i2].GetPosition();
-    float2 uv0 = Vertices[i0].GetUV() / resolution;
-    float2 uv1 = Vertices[i1].GetUV() / resolution;
-    float2 uv2 = Vertices[i2].GetUV() / resolution;
+    float2 uv0 = Vertices[i0].GetUV();
+    float2 uv1 = Vertices[i1].GetUV();
+    float2 uv2 = Vertices[i2].GetUV();
 
     // some ideas from https://ndotl.wordpress.com/2018/08/29/baking-artifact-free-lightmaps/
     float3 edge1 = p1 - p0;
@@ -34,9 +33,8 @@ float3 AdjustSamplePosition(Surface surface, uint primitiveID, float2 bary)
     float3 dPdU = (edge1 * duv2.y - edge2 * duv1.y) * invDet;
     float3 dPdV = (edge2 * duv1.x - edge1 * duv2.x) * invDet;
 
-    float2 texelSizeUV = 1.0 / resolution;
-    float3 worldTexelU = dPdU * texelSizeUV.x;
-    float3 worldTexelV = dPdV * texelSizeUV.y;
+    float3 worldTexelU = dPdU;
+    float3 worldTexelV = dPdV;
 
     float rayLength = (length(worldTexelU) + length(worldTexelV)) * sqrt(2.0); // * 0.5;
 
@@ -45,61 +43,63 @@ float3 AdjustSamplePosition(Surface surface, uint primitiveID, float2 bary)
     float3 rayDirs[4] = {u, -u, v, -v};
 
     Ray leakRay;
-    leakRay.P = positionWS;
+    leakRay.P = RayOffset(surface.P, surface.Ng);
     leakRay.tMin = 0;
     leakRay.tMax = rayLength;
-    Hit leakHit;
+    Hit hit;
 
     [loop] for (int i = 0; i < 4; i++)
     {
         leakRay.D = rayDirs[i];
 
-        if (TraceRay(leakRay, leakHit))
+        if (TraceRay(leakRay, hit))
         {
-            if (!leakHit.frontFace)
+            if (!hit.frontFace)
             {
-                Surface hitSurf = Surface::Get(leakHit.primitiveID, leakHit.bary, true);
-                positionWS = RayOffset(positionWS + leakRay.D * leakHit.t, hitSurf.Ng);
+                // Surface hitSurf = Surface::Get(hit.primitiveID, hit.bary, true);
+                // positionWS = RayOffset(positionWS + leakRay.D * leakHit.t, hitSurf.Ng);
+                visibility.xy = hit.bary.yx; // flip because we hit the back face
+                visibility.z = asuint(hit.primitiveID);
                 break;
             }
         }
     }
-
-    return positionWS;
 }
 
+[[vk::push_constant]]
+PushConstants Push;
+
+struct PushConstants
+{
+    uint compactedCount;
+    uint sampleIndex;
+    uint maxSamples;
+    uint lightCount;
+};
+
 [shader("compute")]
-    [numthreads(8, 8, 1)] void
+    [numthreads(64, 1, 1)] void
     main(uint3 threadID : SV_DispatchThreadID)
 {
-    uint2 coords = threadID.xy;
+    uint index = threadID.x;
 
-    uint2 resolution;
-    VisibilityBuffer.GetDimensions(resolution.x, resolution.y);
-
-    if (coords.x >= resolution.x || coords.y >= resolution.y)
+    if (index >= Push.compactedCount)
     {
         return;
     }
 
-    // float4 visibility = VisibilityBuffer[coords];
-    float4 visibility = 0;
+    float3 visibility = float3(CompactedVisibility[index * 3 + 0],
+                               CompactedVisibility[index * 3 + 1],
+                               CompactedVisibility[index * 3 + 2]);
 
-    uint encoded = asuint(visibility.a);
-    if (encoded == 0)
-    {
-        return;
-    }
-
-    uint primitiveID = asuint(visibility.z);
     float2 bary = visibility.xy;
-    bool useSmoothP = (encoded & (1 << 1)) != 0;
+    uint primitiveID = asuint(visibility.z);
 
-    Surface surface = Surface::Get(primitiveID, bary);
+    Surface surface = Surface::Get(primitiveID, bary, true);
 
-    float3 positionWS = AdjustSamplePosition(surface, primitiveID, bary);
+    AdjustSamplePosition(surface, primitiveID, visibility);
 
-    float packed = PackNormalOctahedron(surface.N);
-
-    // VisibilityBuffer[coords] = float4(positionWS, packed);
+    CompactedVisibility[index * 3 + 0] = visibility.x;
+    CompactedVisibility[index * 3 + 1] = visibility.y;
+    CompactedVisibility[index * 3 + 2] = visibility.z;
 }

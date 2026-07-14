@@ -332,37 +332,37 @@ fn render_visibility_from_lightmap(app: &mut Stilb, width: u32, height: u32, gro
 
         vk.device.cmd_end_render_pass(cmd);
 
-        let shader = &app.adjust_samples_shader;
+        // let shader = &app.adjust_samples_shader;
 
-        let albedos: Vec<vk::ImageView> = app.groups.iter().map(|x| x.albedo.view()).collect();
+        // let albedos: Vec<vk::ImageView> = app.groups.iter().map(|x| x.albedo.view()).collect();
 
         // adjust sample positions
-        update_adjust_samples_shader(
-            &vk,
-            shader,
-            app.tlas.acceleration_structure(),
-            visibility.view(),
-            &albedos,
-            app.gpu_mesh.index_buffer.buffer,
-            app.gpu_mesh.vertex_buffer.buffer,
-        );
+        // update_adjust_samples_shader(
+        //     &vk,
+        //     shader,
+        //     app.tlas.acceleration_structure(),
+        //     visibility.view(),
+        //     &albedos,
+        //     app.gpu_mesh.index_buffer.buffer,
+        //     app.gpu_mesh.vertex_buffer.buffer,
+        // );
 
-        vk.device
-            .cmd_bind_pipeline(cmd, vk::PipelineBindPoint::COMPUTE, shader.pipeline);
+        // vk.device
+        //     .cmd_bind_pipeline(cmd, vk::PipelineBindPoint::COMPUTE, shader.pipeline);
 
-        vk.device.cmd_bind_descriptor_sets(
-            cmd,
-            vk::PipelineBindPoint::COMPUTE,
-            shader.pipeline_layout,
-            0,
-            &[shader.descriptor_set],
-            &[],
-        );
+        // vk.device.cmd_bind_descriptor_sets(
+        //     cmd,
+        //     vk::PipelineBindPoint::COMPUTE,
+        //     shader.pipeline_layout,
+        //     0,
+        //     &[shader.descriptor_set],
+        //     &[],
+        // );
 
-        let groups_x = (width + 7) / 8;
-        let groups_y = (height + 7) / 8;
+        // let groups_x = (width + 7) / 8;
+        // let groups_y = (height + 7) / 8;
 
-        vk.device.cmd_dispatch(cmd, groups_x, groups_y, 1);
+        // vk.device.cmd_dispatch(cmd, groups_x, groups_y, 1);
     }
 
     vk.end_single_use_cmd(cmd);
@@ -1139,7 +1139,7 @@ fn render_lightmaps3(app: &mut Stilb) {
     let mut compacted_visibility = Buffer::empty(
         &app.vk,
         "Compacted Visibility".to_owned(),
-        compacted_pixels_count as u64 * (std::mem::size_of::<u32>() * 2) as u64,
+        compacted_pixels_count as u64 * (std::mem::size_of::<f32>() * 3) as u64,
         vk::BufferUsageFlags::TRANSFER_DST
             | vk::BufferUsageFlags::STORAGE_BUFFER
             | vk::BufferUsageFlags::TRANSFER_SRC
@@ -1154,6 +1154,8 @@ fn render_lightmaps3(app: &mut Stilb) {
         visibility_expanded.view(),
         compaction_buffer.buffer,
         compacted_visibility.buffer,
+        app.gpu_mesh.index_buffer.buffer,
+        app.gpu_mesh.vertex_buffer.buffer,
     );
 
     // render visibility again but this time compact
@@ -1283,6 +1285,56 @@ fn render_lightmaps3(app: &mut Stilb) {
     staging_buffer_compaction.destroy(&app.vk);
     drop(staging_buffer_compaction);
 
+    let albedos: Vec<vk::ImageView> = app.groups.iter().map(|x| x.albedo.view()).collect();
+    let emissions: Vec<vk::ImageView> = app.groups.iter().map(|x| x.emission.view()).collect();
+
+    // adjust sample positions
+    {
+        let mut adjust_sample_shader = load_adjust_samples_shader(&app.vk, &app.constants);
+        update_adjust_samples_shader(
+            &app.vk,
+            &adjust_sample_shader,
+            app.tlas.acceleration_structure(),
+            compacted_visibility.buffer,
+            &albedos,
+            app.gpu_mesh.index_buffer.buffer,
+            app.gpu_mesh.vertex_buffer.buffer,
+        );
+        let push = BakeDirectPushConstants {
+            compacted_count: compacted_pixels_count,
+            sample_index: 0,
+            max_samples: app.config.direct_samples,
+            lights_count: app.cpu_lights.len() as u32,
+        };
+        let cmd = app.vk.begin_single_use_cmd();
+        let vk = &app.vk.device;
+        unsafe {
+            let push_bytes = as_bytes(&push);
+            let shader = &adjust_sample_shader;
+            vk.cmd_bind_pipeline(cmd, vk::PipelineBindPoint::COMPUTE, shader.pipeline);
+            vk.cmd_bind_descriptor_sets(
+                cmd,
+                vk::PipelineBindPoint::COMPUTE,
+                shader.pipeline_layout,
+                0,
+                &[shader.descriptor_set],
+                &[],
+            );
+            vk.cmd_push_constants(
+                cmd,
+                shader.pipeline_layout,
+                vk::ShaderStageFlags::COMPUTE,
+                0,
+                &push_bytes,
+            );
+
+            let groups_x = (compacted_pixels_count + 63) / 64;
+            vk.cmd_dispatch(cmd, groups_x, 1, 1);
+        }
+        app.vk.end_single_use_cmd(cmd);
+        adjust_sample_shader.destroy(&app.vk);
+    }
+
     let mut compacted_diffuse = Buffer::empty(
         &app.vk,
         "Diffuse Buffer".to_owned(),
@@ -1293,9 +1345,6 @@ fn render_lightmaps3(app: &mut Stilb) {
             | vk::BufferUsageFlags::SHADER_DEVICE_ADDRESS,
         vk::MemoryPropertyFlags::DEVICE_LOCAL,
     );
-
-    let albedos: Vec<vk::ImageView> = app.groups.iter().map(|x| x.albedo.view()).collect();
-    let emissions: Vec<vk::ImageView> = app.groups.iter().map(|x| x.emission.view()).collect();
 
     let mut bake_direct_shader = load_bake_direct_shader(&app.vk, &app.constants);
     update_bake_direct_shader(
@@ -1313,10 +1362,10 @@ fn render_lightmaps3(app: &mut Stilb) {
     );
 
     let mut bake_direct_push = BakeDirectPushConstants {
+        compacted_count: compacted_pixels_count,
         sample_index: 0,
         max_samples: app.config.direct_samples,
         lights_count: app.cpu_lights.len() as u32,
-        compacted_count: compacted_pixels_count,
     };
 
     let groups_x = (compacted_pixels_count + 63) / 64;

@@ -36,8 +36,15 @@ main(uint3 threadID : SV_DispatchThreadID)
         uint rank = countbits(entry.x & ((1u << bit) - 1));
         uint compactIndex = entry.y + rank;
 
-        uint2 visibility = VisibilityBuffer[coords];
+        uint2 expandedVisibility = VisibilityBuffer[coords];
+        uint primitiveID = expandedVisibility.x;
+        uint2 originalCoords = UnpackCoords(expandedVisibility.y);
+        float2 uv = float2(originalCoords) + 0.5;
+        float2 bary = BaryFromUV(primitiveID, uv);
 
-        CompactedVisibility[compactIndex] = visibility;
+        float3 visibility = float3(bary, asfloat(primitiveID));
+        CompactedVisibility[compactIndex * 3 + 0] = visibility.x;
+        CompactedVisibility[compactIndex * 3 + 1] = visibility.y;
+        CompactedVisibility[compactIndex * 3 + 2] = visibility.z;
     }
 }
