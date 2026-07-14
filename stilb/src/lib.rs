@@ -849,7 +849,7 @@ fn render_lightmaps3(app: &mut Stilb) {
         &app.vk,
         max_resolution.0,
         max_resolution.1,
-        vk::Format::R32_UINT,
+        vk::Format::R32G32_UINT,
         vk::ImageUsageFlags::STORAGE
             | vk::ImageUsageFlags::TRANSFER_SRC
             | vk::ImageUsageFlags::TRANSFER_DST
@@ -874,17 +874,6 @@ fn render_lightmaps3(app: &mut Stilb) {
         &visibility_shader_non_conservative,
         app.gpu_mesh.index_buffer.buffer,
         app.gpu_mesh.vertex_buffer.buffer,
-    );
-
-    // todo most gpus wouldnt even need a staging buffer
-    let mut staging_buffer = Buffer::empty(
-        &app.vk,
-        "Staging Buffer".to_owned(),
-        (max_resolution.0 * max_resolution.1 * 4) as u64 * std::mem::size_of::<f32>() as u64, // todo this might not be enough to copy compaction with lots of small groups
-        vk::BufferUsageFlags::TRANSFER_DST
-            | vk::BufferUsageFlags::TRANSFER_SRC
-            | vk::BufferUsageFlags::STORAGE_BUFFER,
-        vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT,
     );
 
     let mut compaction_shader = load_shader_compaction_mask(&app.vk, &app.constants);
@@ -1018,6 +1007,13 @@ fn render_lightmaps3(app: &mut Stilb) {
     compaction_shader.destroy(&app.vk);
 
     let mut compaction_buffer_cpu = vec![0u32; compaction_buffer.bytes as usize / 4];
+    let mut staging_buffer_compaction = Buffer::empty(
+        &app.vk,
+        "Staging Buffer".to_owned(),
+        compaction_buffer.bytes,
+        vk::BufferUsageFlags::TRANSFER_DST | vk::BufferUsageFlags::TRANSFER_SRC,
+        vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT,
+    );
 
     unsafe {
         let cmd = app.vk.begin_single_use_cmd();
@@ -1030,14 +1026,14 @@ fn render_lightmaps3(app: &mut Stilb) {
         app.vk.device.cmd_copy_buffer(
             cmd,
             compaction_buffer.buffer,
-            staging_buffer.buffer,
+            staging_buffer_compaction.buffer,
             &[regions],
         );
 
         app.vk.end_single_use_cmd(cmd);
 
         std::ptr::copy_nonoverlapping(
-            staging_buffer.ptr as *const u8,
+            staging_buffer_compaction.ptr as *const u8,
             compaction_buffer_cpu.as_mut_ptr() as *mut u8,
             regions.size as usize,
         );
@@ -1115,7 +1111,7 @@ fn render_lightmaps3(app: &mut Stilb) {
     unsafe {
         std::ptr::copy_nonoverlapping(
             compaction_buffer_cpu.as_ptr() as *const u8,
-            staging_buffer.ptr as *mut u8,
+            staging_buffer_compaction.ptr as *mut u8,
             compaction_buffer.bytes as usize,
         );
         drop(compaction_buffer_cpu);
@@ -1130,7 +1126,7 @@ fn render_lightmaps3(app: &mut Stilb) {
 
         app.vk.device.cmd_copy_buffer(
             cmd,
-            staging_buffer.buffer,
+            staging_buffer_compaction.buffer,
             compaction_buffer.buffer,
             &[region],
         );
@@ -1287,6 +1283,8 @@ fn render_lightmaps3(app: &mut Stilb) {
     visibility_shader_conservative.destroy(&app.vk);
     visibility_shader_non_conservative.destroy(&app.vk);
     compact_visibility_shader.destroy(&app.vk);
+    staging_buffer_compaction.destroy(&app.vk);
+    drop(staging_buffer_compaction);
 
     let mut compacted_diffuse = Buffer::empty(
         &app.vk,
@@ -1359,11 +1357,19 @@ fn render_lightmaps3(app: &mut Stilb) {
 
     let mut decompact_shader = load_shader_decompact(&app.vk, &app.constants);
 
+    let mut staging_buffer_lightmap = Buffer::empty(
+        &app.vk,
+        "Staging Buffer".to_owned(),
+        (max_resolution.0 * max_resolution.1 * 4) as u64 * std::mem::size_of::<f32>() as u64,
+        vk::BufferUsageFlags::TRANSFER_SRC | vk::BufferUsageFlags::STORAGE_BUFFER,
+        vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT,
+    );
+
     update_shader_decompact(
         &app.vk,
         &decompact_shader,
         compaction_buffer.buffer,
-        staging_buffer.buffer,
+        staging_buffer_lightmap.buffer,
         compacted_diffuse.buffer,
     );
 
@@ -1407,7 +1413,7 @@ fn render_lightmaps3(app: &mut Stilb) {
 
         unsafe {
             let pixels: &[f32] = std::slice::from_raw_parts(
-                staging_buffer.ptr as *const f32,
+                staging_buffer_lightmap.ptr as *const f32,
                 (group.width * group.height * 4) as usize,
             );
 
@@ -1428,7 +1434,7 @@ fn render_lightmaps3(app: &mut Stilb) {
     compacted_diffuse.destroy(&app.vk);
     compacted_visibility.destroy(&app.vk);
     compaction_buffer.destroy(&app.vk);
-    staging_buffer.destroy(&app.vk);
+    staging_buffer_lightmap.destroy(&app.vk);
 }
 
 fn deinterleave_with_zero(mut word: u32) -> u32 {

@@ -36,10 +36,10 @@ main(uint3 threadID : SV_DispatchThreadID)
         uint rank = countbits(entry.x & ((1u << bit) - 1));
         uint compactIndex = entry.y + rank;
 
-        uint primitiveID = VisibilityBuffer[coords];
-        uint2 uv = coords;
-        uv.y = Push.resolution.y - uv.y;
-        uint2 visibility = uint2(primitiveID, PackCoords(uv));
+        // uint primitiveID = VisibilityBuffer[coords];
+        // uint2 uv = coords;
+        // uv.y = Push.resolution.y - uv.y;
+        uint2 visibility = VisibilityBuffer[coords];
 
         CompactedVisibility[compactIndex] = visibility;
     }

@@ -17,6 +17,7 @@ struct Varyings
 {
     float4 positionCS : SV_Position;
     nointerpolation uint primitiveID : TEXCOORD2;
+    float2 uv : UV;
 };
 
 [shader("vertex")] Varyings vertex(uint vertexID : SV_VulkanVertexID)
@@ -33,6 +34,7 @@ struct Varyings
     {
         o.positionCS = asfloat(-1);
         o.primitiveID = uint::maxValue;
+        o.uv = 0;
     }
     else
     {
@@ -41,6 +43,8 @@ struct Varyings
 
         float2 scale = resolution / rtResolution;
         float2 uv = v.GetUV() / resolution;
+
+        o.uv = uv;
 
         uv.y = 1.0 - uv.y;
         uv *= scale;
@@ -52,8 +56,8 @@ struct Varyings
     return o;
 }
 
-    [shader("fragment")] uint fragment(Varyings varyings)
+    [shader("fragment")] uint2 fragment(Varyings varyings)
     : SV_Target
 {
-    return varyings.primitiveID;
+    return uint2(varyings.primitiveID, PackCoords(uint2(varyings.uv * float2(Push.resolution))));
 }
