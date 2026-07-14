@@ -358,7 +358,7 @@ fn render_preview(app: &mut Stilb) {
 
     app.init_from_camera_shader = load_init_from_camera_shader(&app.vk, &app.constants);
 
-    update_render_target(app, &preview_settings, 0);
+    update_render_target(app, &preview_settings);
 
     let visibility = &mut app.render_target.visibility;
     let diffuse = &mut app.render_target.diffuse;
@@ -424,7 +424,7 @@ fn render_preview(app: &mut Stilb) {
                 app.config.preview_settings.width = app.vk.swapchain.extent.width;
                 app.config.preview_settings.height = app.vk.swapchain.extent.height;
 
-                update_render_target(app, &preview_settings, 0);
+                update_render_target(app, &preview_settings);
 
                 let diffuse = &mut app.render_target.diffuse;
                 let visibility = &mut app.render_target.visibility;
@@ -649,32 +649,30 @@ fn render_sample_camera(app: &mut Stilb) -> bool {
                     layer_count: 1,
                 };
                 let vk = &vk.device;
-                unsafe {
-                    if diffuse.layout() != vk::ImageLayout::TRANSFER_DST_OPTIMAL {
-                        let barrier = diffuse.barrier(
-                            vk::ImageLayout::TRANSFER_DST_OPTIMAL,
-                            vk::AccessFlags::empty(),
-                            vk::AccessFlags::TRANSFER_WRITE,
-                        );
-                        vk.cmd_pipeline_barrier(
-                            cmd,
-                            vk::PipelineStageFlags::TOP_OF_PIPE,
-                            vk::PipelineStageFlags::TRANSFER,
-                            vk::DependencyFlags::empty(),
-                            &[],
-                            &[],
-                            &[barrier],
-                        );
-                    }
-
-                    vk.cmd_clear_color_image(
-                        cmd,
-                        diffuse.image(),
+                if diffuse.layout() != vk::ImageLayout::TRANSFER_DST_OPTIMAL {
+                    let barrier = diffuse.barrier(
                         vk::ImageLayout::TRANSFER_DST_OPTIMAL,
-                        &clear,
-                        &[range],
+                        vk::AccessFlags::empty(),
+                        vk::AccessFlags::TRANSFER_WRITE,
+                    );
+                    vk.cmd_pipeline_barrier(
+                        cmd,
+                        vk::PipelineStageFlags::TOP_OF_PIPE,
+                        vk::PipelineStageFlags::TRANSFER,
+                        vk::DependencyFlags::empty(),
+                        &[],
+                        &[],
+                        &[barrier],
                     );
                 }
+
+                vk.cmd_clear_color_image(
+                    cmd,
+                    diffuse.image(),
+                    vk::ImageLayout::TRANSFER_DST_OPTIMAL,
+                    &clear,
+                    &[range],
+                );
             };
         }
 
@@ -866,7 +864,7 @@ fn render_sample_camera(app: &mut Stilb) -> bool {
     true
 }
 
-fn update_render_target(app: &mut Stilb, settings: &LightmapSettings, group_index: u32) {
+fn update_render_target(app: &mut Stilb, settings: &LightmapSettings) {
     let (width, height) = if app.config.is_preview {
         (
             app.config.preview_settings.width,
@@ -1877,6 +1875,7 @@ fn render_lightmaps3(app: &mut Stilb) {
         compaction_buffer.buffer,
         staging_buffer_lightmap.buffer,
         compacted_lightmap.buffer,
+        compacted_visibility.buffer,
     );
 
     let oidn = Oidn::load();

@@ -96,22 +96,4 @@ struct PushConstants
         CompactedLightmap[index * 3 + 1] += dominantDirection.y;
         CompactedLightmap[index * 3 + 2] += dominantDirection.z;
     }
-
-    // uint index = (coords.x + coords.y * resolution.x) * 4;
-    // dominantDirection.z = -dominantDirection.z; // unity coords
-
-    // // todo temp
-    // if (sampleIndex == 0)
-    // {
-    //     DominantDirection[index + 0] = dominantDirection.x;
-    //     DominantDirection[index + 1] = dominantDirection.y;
-    //     DominantDirection[index + 2] = dominantDirection.z;
-    //     DominantDirection[index + 3] = PackNormalOctahedron(float3(normalWS.xy, -normalWS.z));
-    // }
-    // else
-    // {
-    //     DominantDirection[index + 0] += dominantDirection.x;
-    //     DominantDirection[index + 1] += dominantDirection.y;
-    //     DominantDirection[index + 2] += dominantDirection.z;
-    // }
 }
