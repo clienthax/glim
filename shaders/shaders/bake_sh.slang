@@ -36,7 +36,7 @@ struct PushConstants
 
     uint sobolIndexMask = ~0u;
     SamplingPattern pattern = SamplingPattern::BlueNoisePure;
-    uint pixelSeed = RNGPixelInit(uint2(probeIndex.x, 0), pattern);
+    uint pixelSeed = RNGPixelInit1D(probeIndex);
     uint3 indexing = BlueNoiseIndexing(pixelSeed, sampleIndex, sobolIndexMask, sampleCount, pattern);
     uint dimension = 0;
 
@@ -57,31 +57,31 @@ struct PushConstants
         AccumulateL2(probe, sampleIndex, color * sampleScale, L);
     }
 
-    float2 xiBounce = SobolBurleySample2D(indexing.x, 1, indexing.y, indexing.z);
+    // float2 xiBounce = SobolBurleySample2D(indexing.x, 1, indexing.y, indexing.z);
 
-    Ray bounceRay;
-    bounceRay.P = probePosition;
-    bounceRay.D = RandomDirectionSphere(xiBounce);
-    bounceRay.tMin = 0;
-    bounceRay.tMax = RAY_MAX;
+    // Ray bounceRay;
+    // bounceRay.P = probePosition;
+    // bounceRay.D = RandomDirectionSphere(xiBounce);
+    // bounceRay.tMin = 0;
+    // bounceRay.tMax = RAY_MAX;
 
-    Hit bounceHit;
-    if (TraceRay(bounceRay, bounceHit))
-    {
-        Surface surface = Surface::Get(bounceHit.primitiveID, bounceHit.bary, bounceHit.frontFace);
+    // Hit bounceHit;
+    // if (TraceRay(bounceRay, bounceHit))
+    // {
+    //     Surface surface = Surface::Get(bounceHit.primitiveID, bounceHit.bary, bounceHit.frontFace);
 
-        bool backface = !bounceHit.frontFace && !surface.backfaceGI;
+    //     bool backface = !bounceHit.frontFace && !surface.backfaceGI;
 
-        if (!backface)
-        {
-            float3 bounceEmission = SampleEmission(surface.uv, surface.lightmapGroup).rgb;
-            AccumulateL2(probe, sampleIndex, bounceEmission.rgb * 4 * sampleScale, bounceRay.D);
+    //     if (!backface)
+    //     {
+    //         float3 bounceEmission = SampleEmission(surface.uv, surface.lightmapGroup).rgb;
+    //         AccumulateL2(probe, sampleIndex, bounceEmission.rgb * 4 * sampleScale, bounceRay.D);
 
-            float3 bounceAlbedo = SampleAlbedo(surface.uv, surface.lightmapGroup).rgb;
-            float3 previousDiffuse = SamplePreviousDiffuse(surface.uv, surface.lightmapGroup).rgb;
-            AccumulateL2(probe, sampleIndex, previousDiffuse * bounceAlbedo * 4 * sampleScale, bounceRay.D);
-        }
-    }
+    //         float3 bounceAlbedo = SampleAlbedo(surface.uv, surface.lightmapGroup).rgb;
+    //         float3 previousDiffuse = SamplePreviousDiffuse(surface.uv, surface.lightmapGroup).rgb;
+    //         AccumulateL2(probe, sampleIndex, previousDiffuse * bounceAlbedo * 4 * sampleScale, bounceRay.D);
+    //     }
+    // }
 
     SHProbes[probeIndex] = probe;
 }

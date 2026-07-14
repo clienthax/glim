@@ -526,7 +526,7 @@ fn initialize_render(app: &mut Stilb) {
     app.preview_shader = load_preview_shader(&app.vk, &app.constants);
 
     if app.probes.len() > 0 {
-        app.bake_probes_shader = load_bake_sh_shader(&app.vk, &app.constants);
+        app.bake_probes_shader = load_bake_light_probes_shader(&app.vk, &app.constants);
 
         let flags = vk::BufferUsageFlags::TRANSFER_DST
             | vk::BufferUsageFlags::STORAGE_BUFFER
@@ -1055,54 +1055,50 @@ fn render_lightmaps3(app: &mut Stilb) {
             compacted_pixels_count += bits;
         }
 
-        // compacted_groups_start[group_index] = compacted_pixels_count;
+        // const DEBUG_COMPACTION: bool = false;
+        // if DEBUG_COMPACTION {
+        //     let mut debug_pixels = vec![0.0; pixel_count * 4];
 
-        // compacted_pixels_count += prefix_sum;
+        //     for i in 0..pixel_count {
+        //         let word = i / 32;
+        //         let bit = i & 31;
 
-        const DEBUG_COMPACTION: bool = false;
-        if DEBUG_COMPACTION {
-            let mut debug_pixels = vec![0.0; pixel_count * 4];
+        //         let mask = compaction_buffer_cpu[group_start + word * 2];
+        //         let offset = compaction_buffer_cpu[group_start + word * 2 + 1];
 
-            for i in 0..pixel_count {
-                let word = i / 32;
-                let bit = i & 31;
+        //         let active = (mask & (1 << bit)) != 0;
 
-                let mask = compaction_buffer_cpu[group_start + word * 2];
-                let offset = compaction_buffer_cpu[group_start + word * 2 + 1];
+        //         let order = if active {
+        //             let rank = (mask & ((1u32 << bit) - 1)).count_ones();
+        //             let compact_index = offset + rank;
 
-                let active = (mask & (1 << bit)) != 0;
+        //             (compact_index % 32) as f32 / 32.0
+        //         } else {
+        //             0.0
+        //         };
+        //         let visible = if active { 1.0 } else { 0.0 };
 
-                let order = if active {
-                    let rank = (mask & ((1u32 << bit) - 1)).count_ones();
-                    let compact_index = offset + rank;
+        //         let (x, y) = index_to_uv(i as u32);
 
-                    (compact_index % 32) as f32 / 32.0
-                } else {
-                    0.0
-                };
-                let visible = if active { 1.0 } else { 0.0 };
+        //         let pixel = (y * group.width + x) as usize;
+        //         let dst = pixel * 4;
 
-                let (x, y) = index_to_uv(i as u32);
+        //         debug_pixels[dst + 0] = order;
+        //         debug_pixels[dst + 1] = order;
+        //         debug_pixels[dst + 2] = order;
+        //         debug_pixels[dst + 3] = visible;
+        //     }
 
-                let pixel = (y * group.width + x) as usize;
-                let dst = pixel * 4;
-
-                debug_pixels[dst + 0] = order;
-                debug_pixels[dst + 1] = order;
-                debug_pixels[dst + 2] = order;
-                debug_pixels[dst + 3] = visible;
-            }
-
-            let readback_data = LightmapReadbackData {
-                group_index: group_index as u32,
-                ty: 0,
-                pixels: debug_pixels.as_ptr(),
-                pixels_count: debug_pixels.len() as u32,
-                width: group.width,
-                height: group.height,
-            };
-            (app.config.lightmap_read_callback)(readback_data);
-        }
+        //     let readback_data = LightmapReadbackData {
+        //         group_index: group_index as u32,
+        //         ty: 0,
+        //         pixels: debug_pixels.as_ptr(),
+        //         pixels_count: debug_pixels.len() as u32,
+        //         width: group.width,
+        //         height: group.height,
+        //     };
+        //     (app.config.lightmap_read_callback)(readback_data);
+        // }
     }
 
     // copy back the compaction buffer with prefix sum calculated
@@ -1427,7 +1423,7 @@ fn render_lightmaps3(app: &mut Stilb) {
 
     let mut staging_buffer_lightmap = Buffer::empty(
         &app.vk,
-        "Staging Buffer".to_owned(),
+        "Staging Buffer Lightmap".to_owned(),
         (max_resolution.0 * max_resolution.1 * 4) as u64 * std::mem::size_of::<f32>() as u64,
         vk::BufferUsageFlags::TRANSFER_SRC | vk::BufferUsageFlags::STORAGE_BUFFER,
         vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT,
@@ -1597,30 +1593,133 @@ fn render_lightmaps3(app: &mut Stilb) {
         };
     }
 
-    decompact_shader.destroy(&app.vk);
     dilate_shader.destroy(&app.vk);
+    decompact_shader.destroy(&app.vk);
+    compacted_visibility.destroy(&app.vk);
+    staging_buffer_lightmap.destroy(&app.vk);
+
+    // light probes
+    if app.probes.len() > 0 {
+        let mut shader = load_bake_light_probes_shader(&app.vk, &app.constants);
+
+        update_bake_light_probes_shader(
+            &app.vk,
+            &shader,
+            app.tlas.acceleration_structure(),
+            app.probes_buffer.buffer,
+            &albedos,
+            &emissions,
+            compacted_diffuse.buffer,
+            app.gpu_mesh.index_buffer.buffer,
+            app.gpu_mesh.vertex_buffer.buffer,
+            app.gpu_lights.buffer,
+            compaction_buffer.buffer,
+        );
+
+        let mut push = BakeSHPushConstants {
+            lights_count: app.cpu_lights.len() as u32,
+            max_samples: app.config.probe_samples,
+            sample_index: 0,
+            probes_count: app.probes.len() as u32,
+        };
+
+        let probes_count = app.probes.len() as u32;
+        let groups_x = (probes_count + 63) / 64;
+        let vk = &app.vk.device;
+
+        for sample_index in 0..app.config.probe_samples {
+            push.sample_index = sample_index;
+            let constants_bytes = as_bytes(&push);
+
+            let cmd = app.vk.begin_single_use_cmd();
+            unsafe {
+                vk.cmd_bind_pipeline(cmd, vk::PipelineBindPoint::COMPUTE, shader.pipeline);
+
+                vk.cmd_bind_descriptor_sets(
+                    cmd,
+                    vk::PipelineBindPoint::COMPUTE,
+                    shader.pipeline_layout,
+                    0,
+                    &[shader.descriptor_set],
+                    &[],
+                );
+
+                vk.cmd_push_constants(
+                    cmd,
+                    shader.pipeline_layout,
+                    vk::ShaderStageFlags::COMPUTE,
+                    0,
+                    &constants_bytes,
+                );
+
+                vk.cmd_dispatch(cmd, groups_x, 1, 1);
+            };
+            app.vk.end_single_use_cmd(cmd);
+        }
+
+        // println!("Probes:\n{:#?}", &app.probes);
+        // app.vk
+        //     .download_buffer(app.probes_buffer.buffer, &mut app.probes);
+
+        // std::ptr::copy_nonoverlapping(
+        //     compaction_buffer_cpu.as_ptr() as *const u8,
+        //     staging_buffer_compaction.ptr as *mut u8,
+        //     compaction_buffer.bytes as usize,
+        // );
+
+        let mut staging_buffer_light_probes = Buffer::empty(
+            &app.vk,
+            "Staging Buffer Light Probes".to_owned(),
+            app.probes_buffer.bytes,
+            vk::BufferUsageFlags::TRANSFER_DST,
+            vk::MemoryPropertyFlags::HOST_VISIBLE | vk::MemoryPropertyFlags::HOST_COHERENT,
+        );
+
+        let cmd = app.vk.begin_single_use_cmd();
+        let region = vk::BufferCopy {
+            src_offset: 0,
+            dst_offset: 0,
+            size: app.probes_buffer.bytes,
+        };
+        unsafe {
+            app.vk.device.cmd_copy_buffer(
+                cmd,
+                app.probes_buffer.buffer,
+                staging_buffer_light_probes.buffer,
+                &[region],
+            )
+        };
+        app.vk.end_single_use_cmd(cmd);
+
+        let readback_data = LightprobesReadbackData {
+            probes: staging_buffer_light_probes.ptr as *const SHProbeL2,
+            pixels_count: app.probes.len() as u32,
+        };
+
+        (app.config.lightprobes_read_callback)(readback_data);
+        shader.destroy(&app.vk);
+        staging_buffer_light_probes.destroy(&app.vk);
+    }
 
     compacted_diffuse.destroy(&app.vk);
-    compacted_visibility.destroy(&app.vk);
     compaction_buffer.destroy(&app.vk);
-    staging_buffer_lightmap.destroy(&app.vk);
 }
 
-fn deinterleave_with_zero(mut word: u32) -> u32 {
-    word &= 0x5555_5555;
-    word = (word | (word >> 1)) & 0x3333_3333;
-    word = (word | (word >> 2)) & 0x0f0f_0f0f;
-    word = (word | (word >> 4)) & 0x00ff_00ff;
-    word = (word | (word >> 8)) & 0x0000_ffff;
-    word
-}
+// fn deinterleave_with_zero(mut word: u32) -> u32 {
+//     word &= 0x5555_5555;
+//     word = (word | (word >> 1)) & 0x3333_3333;
+//     word = (word | (word >> 2)) & 0x0f0f_0f0f;
+//     word = (word | (word >> 4)) & 0x00ff_00ff;
+//     word = (word | (word >> 8)) & 0x0000_ffff;
+//     word
+// }
 
-fn index_to_uv(index: u32) -> (u32, u32) {
-    (
-        deinterleave_with_zero(index),
-        deinterleave_with_zero(index >> 1),
-    )
-}
+// fn index_to_uv(index: u32) -> (u32, u32) {
+//     (
+//         deinterleave_with_zero(index),
+//         deinterleave_with_zero(index >> 1),
+//     )
+// }
 // fn render_lightmaps(app: &mut Stilb) {
 //     let albedos: Vec<vk::ImageView> = app.groups.iter().map(|x| x.albedo.view()).collect();
 //     let emissions: Vec<vk::ImageView> = app.groups.iter().map(|x| x.emission.view()).collect();
@@ -2304,90 +2403,90 @@ fn octahedron_wrap(v: Vector2) -> Vector2 {
     }
 }
 
-fn decode_normal_octahedron(e: Vector2) -> Vector3 {
-    let mut v = Vector3 {
-        x: e.x,
-        y: e.y,
-        z: 1.0 - e.x.abs() - e.y.abs(),
-    };
+// fn decode_normal_octahedron(e: Vector2) -> Vector3 {
+//     let mut v = Vector3 {
+//         x: e.x,
+//         y: e.y,
+//         z: 1.0 - e.x.abs() - e.y.abs(),
+//     };
 
-    if v.z < 0.0 {
-        let xy = octahedron_wrap(Vector2 { x: v.x, y: v.y });
-        v.x = xy.x;
-        v.y = xy.y;
-    }
+//     if v.z < 0.0 {
+//         let xy = octahedron_wrap(Vector2 { x: v.x, y: v.y });
+//         v.x = xy.x;
+//         v.y = xy.y;
+//     }
 
-    v.normalize()
-}
+//     v.normalize()
+// }
 
-fn unpack_normal_octahedron(packed: f32) -> Vector3 {
-    let bits = packed.to_bits();
+// fn unpack_normal_octahedron(packed: f32) -> Vector3 {
+//     let bits = packed.to_bits();
 
-    let x = bits >> 16;
-    let y = bits & 0xFFFF;
+//     let x = bits >> 16;
+//     let y = bits & 0xFFFF;
 
-    let mut oct = Vector2 {
-        x: (x as f32) / 65535.0,
-        y: (y as f32) / 65535.0,
-    };
+//     let mut oct = Vector2 {
+//         x: (x as f32) / 65535.0,
+//         y: (y as f32) / 65535.0,
+//     };
 
-    oct.x = oct.x * 2.0 - 1.0;
-    oct.y = oct.y * 2.0 - 1.0;
+//     oct.x = oct.x * 2.0 - 1.0;
+//     oct.y = oct.y * 2.0 - 1.0;
 
-    decode_normal_octahedron(oct)
-}
+//     decode_normal_octahedron(oct)
+// }
 
-fn encode_directional_lightmap_rgb(diffuse: &[f32], dir: &mut [f32]) {
-    for i in 0..(diffuse.len() / 4) {
-        let index = i * 4;
-        let diffuse_r = diffuse[index + 0];
-        let diffuse_g = diffuse[index + 1];
-        let diffuse_b = diffuse[index + 2];
-        let diffuse_a = diffuse[index + 3];
+// fn encode_directional_lightmap_rgb(diffuse: &[f32], dir: &mut [f32]) {
+//     for i in 0..(diffuse.len() / 4) {
+//         let index = i * 4;
+//         let diffuse_r = diffuse[index + 0];
+//         let diffuse_g = diffuse[index + 1];
+//         let diffuse_b = diffuse[index + 2];
+//         let diffuse_a = diffuse[index + 3];
 
-        if diffuse_a == 0.0 {
-            continue;
-        }
+//         if diffuse_a == 0.0 {
+//             continue;
+//         }
 
-        let diffuse = Vector3::new(diffuse_r, diffuse_g, diffuse_b);
-        let luminance = diffuse.luminance();
+//         let diffuse = Vector3::new(diffuse_r, diffuse_g, diffuse_b);
+//         let luminance = diffuse.luminance();
 
-        let dir_x = dir[index + 0];
-        let dir_y = dir[index + 1];
-        let dir_z = dir[index + 2];
+//         let dir_x = dir[index + 0];
+//         let dir_y = dir[index + 1];
+//         let dir_z = dir[index + 2];
 
-        let v = Vector3::new(dir_x, dir_y, dir_z);
+//         let v = Vector3::new(dir_x, dir_y, dir_z);
 
-        let normalized_dir = (v / luminance).normalize();
+//         let normalized_dir = (v / luminance).normalize();
 
-        dir[index + 0] = normalized_dir.x * 0.5 + 0.5;
-        dir[index + 1] = normalized_dir.y * 0.5 + 0.5;
-        dir[index + 2] = normalized_dir.z * 0.5 + 0.5;
-    }
-}
+//         dir[index + 0] = normalized_dir.x * 0.5 + 0.5;
+//         dir[index + 1] = normalized_dir.y * 0.5 + 0.5;
+//         dir[index + 2] = normalized_dir.z * 0.5 + 0.5;
+//     }
+// }
 
-fn encode_directional_lightmap_alpha(diffuse: &[f32], dir: &mut [f32]) {
-    for i in 0..(diffuse.len() / 4) {
-        let index = i * 4;
-        let diffuse_a = diffuse[index + 3];
+// fn encode_directional_lightmap_alpha(diffuse: &[f32], dir: &mut [f32]) {
+//     for i in 0..(diffuse.len() / 4) {
+//         let index = i * 4;
+//         let diffuse_a = diffuse[index + 3];
 
-        if diffuse_a == 0.0 {
-            continue;
-        }
+//         if diffuse_a == 0.0 {
+//             continue;
+//         }
 
-        let dir_w = dir[index + 3];
+//         let dir_w = dir[index + 3];
 
-        let normal = unpack_normal_octahedron(dir_w);
+//         let normal = unpack_normal_octahedron(dir_w);
 
-        let normalized_dir = Vector3 {
-            x: (dir[index + 0] - 0.5) * 2.0,
-            y: (dir[index + 1] - 0.5) * 2.0,
-            z: (dir[index + 2] - 0.5) * 2.0,
-        };
+//         let normalized_dir = Vector3 {
+//             x: (dir[index + 0] - 0.5) * 2.0,
+//             y: (dir[index + 1] - 0.5) * 2.0,
+//             z: (dir[index + 2] - 0.5) * 2.0,
+//         };
 
-        dir[index + 3] = normal.dot(normalized_dir).clamp(0.0, 1.0) * 0.5 + 0.5;
-    }
-}
+//         dir[index + 3] = normal.dot(normalized_dir).clamp(0.0, 1.0) * 0.5 + 0.5;
+//     }
+// }
 
 // fn _bake_lightmaps(app: &mut Stilb) {
 //     let albedos: Vec<vk::ImageView> = app.groups.iter().map(|x| x.albedo.view()).collect();
@@ -3659,6 +3758,7 @@ impl Stilb {
         let staging_width = 1024;
         let staging_height = 1024;
 
+        // todo remove
         let staging_buffer = Buffer::empty(
             &vk,
             String::from("Staging Buffer"),

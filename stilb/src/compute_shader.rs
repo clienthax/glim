@@ -467,7 +467,7 @@ pub fn load_bake_bounce_shader(
     )
 }
 
-pub fn load_bake_sh_shader(
+pub fn load_bake_light_probes_shader(
     vk: &VulkanContext,
     constants: &SpecializationConstants,
 ) -> ComputeShader {
@@ -476,12 +476,12 @@ pub fn load_bake_sh_shader(
     bind_tlas(&mut bindings);
     bind_albedos(&mut bindings, constants.lightmap_group_count);
     bind_emissions(&mut bindings, constants.lightmap_group_count);
-    bind_sampler(&mut bindings);
     bind_probe_sh(&mut bindings);
     bind_indices(&mut bindings);
     bind_vertices(&mut bindings);
     bind_lights(&mut bindings);
-    bind_previous_diffuse(&mut bindings, constants.lightmap_group_count);
+    bind_compacted_diffuse(&mut bindings);
+    bind_compaction_buffer(&mut bindings);
 
     let push_constant_ranges = [vk::PushConstantRange {
         stage_flags: vk::ShaderStageFlags::COMPUTE,
@@ -504,18 +504,18 @@ pub fn load_bake_sh_shader(
     )
 }
 
-pub fn update_bake_sh_shader(
+pub fn update_bake_light_probes_shader(
     vk: &VulkanContext,
     shader: &ComputeShader,
     tlas: vk::AccelerationStructureKHR,
     probes: vk::Buffer,
     albedos: &[vk::ImageView],
     emissions: &[vk::ImageView],
-    diffuses: &[vk::ImageView],
-    sampler: vk::Sampler,
+    compacted_diffuse: vk::Buffer,
     indices: vk::Buffer,
     vertices: vk::Buffer,
     lights: vk::Buffer,
+    compaction: vk::Buffer,
 ) {
     let mut descriptor_writes = Vec::new();
 
@@ -567,20 +567,6 @@ pub fn update_bake_sh_shader(
         ..Default::default()
     };
     write = write.image_info(&infos);
-    descriptor_writes.push(write);
-
-    // TextureSampler
-    let info = [vk::DescriptorImageInfo {
-        sampler,
-        ..Default::default()
-    }];
-    let mut write = vk::WriteDescriptorSet {
-        dst_set: shader.descriptor_set,
-        dst_binding: 6,
-        descriptor_type: vk::DescriptorType::SAMPLER,
-        ..Default::default()
-    };
-    write = write.image_info(&info);
     descriptor_writes.push(write);
 
     // ProbeSH
@@ -643,23 +629,34 @@ pub fn update_bake_sh_shader(
     write = write.buffer_info(&info);
     descriptor_writes.push(write);
 
-    // PreviousDiffuse
-    let infos: Vec<vk::DescriptorImageInfo> = diffuses
-        .iter()
-        .map(|tex| vk::DescriptorImageInfo {
-            image_view: *tex,
-            image_layout: vk::ImageLayout::SHADER_READ_ONLY_OPTIMAL,
-            ..Default::default()
-        })
-        .collect();
+    // CompactedDiffuse
+    let info = [vk::DescriptorBufferInfo {
+        buffer: compacted_diffuse,
+        offset: 0,
+        range: vk::WHOLE_SIZE,
+    }];
     let mut write = vk::WriteDescriptorSet {
         dst_set: shader.descriptor_set,
-        dst_binding: 13,
-        dst_array_element: 0,
-        descriptor_type: vk::DescriptorType::SAMPLED_IMAGE,
+        dst_binding: 18,
+        descriptor_type: vk::DescriptorType::STORAGE_BUFFER,
         ..Default::default()
     };
-    write = write.image_info(&infos);
+    write = write.buffer_info(&info);
+    descriptor_writes.push(write);
+
+    // CompactionBuffer
+    let info = [vk::DescriptorBufferInfo {
+        buffer: compaction,
+        offset: 0,
+        range: vk::WHOLE_SIZE,
+    }];
+    let mut write = vk::WriteDescriptorSet {
+        dst_set: shader.descriptor_set,
+        dst_binding: 15,
+        descriptor_type: vk::DescriptorType::STORAGE_BUFFER,
+        ..Default::default()
+    };
+    write = write.buffer_info(&info);
     descriptor_writes.push(write);
 
     unsafe { vk.device.update_descriptor_sets(&descriptor_writes, &[]) };
