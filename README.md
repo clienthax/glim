@@ -7,25 +7,25 @@ A GPU accelerated standalone lightmap baker for Unity, powered by Vulkan
 
 - Supports Windows and Linux (Nvidia and AMD GPUs)
 - Fast hardware accelerated ray-tracing (can utilize RTX)
-- Easy to use (aims to be mostly a drop in replacement)
+- Easy to use (aims to be mostly a drop-in replacement)
 - Realtime Preview
-- Seam stiching with a least squares solver
+- Seam stitching with a least squares solver
 - UV Packing with hole filling
-- Open Image Denoise 2
+- Open Image Denoise 2.0
 - Light Probe baking (L2 Spherical Harmonics)
 - Light Volumes
 - Physically correct
 - Lightmap Groups
 - Directional Lightmaps
 - Small binary size (only ~1MB)
-- Emissive materials, Directional, Spot and Point Lights
+- Emissive materials, Directional, Spot, and Point Lights
 - Fully standalone, with Unity URP and Built-In pipeline support
 
 ## How to use
 
 ## Notes
 
-- Currently requires a GPU with `VK_KHR_ray_query` extension, however it will support any GPU with a software BVH in the future. Check GPU support here `https://vulkan.gpuinfo.org/listdevices.php`, most modern GPUs should work.
+- Currently requires a GPU with the `VK_KHR_ray_query` extension, however it will support any GPU with a software BVH in the future. Check GPU support here `https://vulkan.gpuinfo.org/listdevices.php`, most modern GPUs should work.
 - While the lightmapper is fully working, it is still in early stages, theres room for improvement and it might lack some features
 
 ### Denoiser Setup
@@ -49,7 +49,7 @@ A GPU accelerated standalone lightmap baker for Unity, powered by Vulkan
 - Make sure to setup the denoiser first (otherwise denoising will be skipped)
 - Setup the scene (mark objects as static, generate lightmap uvs, add lights with baked mode or emissive materials etc.)
 - Menu Item `Glim > Bake`
-- Adjust settings on the created game object and press `Generate Lighting`
+- Adjust settings on the created GameObjects and press `Generate Lighting`
 
 #### Lightmap Groups
 
@@ -60,7 +60,7 @@ A GPU accelerated standalone lightmap baker for Unity, powered by Vulkan
 
 ## Stack
 
-- Written in Rust, using the lightweight Ash vulkan crate, with minimal dependencies
+- Written in Rust, using the lightweight Ash Vulkan crate, with minimal dependencies
 - Shaders written in Slang
 
 ## Building
