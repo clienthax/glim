@@ -6,36 +6,24 @@ PushConstants Push;
 
 struct PushConstants
 {
-    uint width;
-    uint height;
+    uint compactedCount;
     uint sampleIndex;
     uint maxSamples;
-
     uint bounceIndex;
-    uint pad0;
-    uint pad1;
-    uint pad2;
 };
 
 [shader("compute")]
     [numthreads(8, 8, 1)] void
     main(uint3 threadID : SV_DispatchThreadID)
 {
-    uint2 coords = threadID.xy;
-    uint2 resolution = uint2(Push.width, Push.height);
+    uint index = threadID.x;
 
-    if (coords.x >= resolution.x || coords.y >= resolution.y)
+    if (index >= Push.compactedCount)
     {
         return;
     }
 
-    // float4 visibility = VisibilityBuffer[coords];
-    float4 visibility = 0;
-
-    if (all(visibility == 0))
-    {
-        return;
-    }
+    float4 visibility = CompactedVisibility[index];
 
     float3 positionWS = visibility.xyz;
     float3 normalWS = UnpackNormalOctahedron(visibility.w);
@@ -47,7 +35,7 @@ struct PushConstants
     uint sobolIndexMask = ~0u;
 
     SamplingPattern pattern = SamplingPattern::BlueNoiseFirst;
-    uint pixelSeed = RNGPixelInit(coords, pattern);
+    uint pixelSeed = RNGPixelInit1D(index);
     uint3 indexing = BlueNoiseIndexing(pixelSeed, sampleIndex, sobolIndexMask, sampleCount, pattern);
 
     uint dimension = bounceIndex + 3;
@@ -61,6 +49,29 @@ struct PushConstants
 
     float4 color = 0.0;
     float4 dominantDirection = 0.0;
+
+    uint bounceAOffset = Push.compactedCount;
+    uint bounceBOffset = Push.compactedCount * 2;
+
+    if (LIGHTMAP_MODE == LightmapMode::Directional)
+    {
+        bounceAOffset += Push.compactedCount;
+        bounceBOffset += Push.compactedCount;
+    }
+
+    uint previousOffset = 0;
+    uint currentOffset = 0;
+    if (Push.bounceIndex == 0)
+    {
+        previousOffset = 0;
+        currentOffset = bounceAOffset;
+    }
+    else
+    {
+        bool swap = Push.bounceIndex % 2 != 0;
+        currentOffset = swap ? bounceBOffset : bounceAOffset;
+        previousOffset = swap ? bounceAOffset : bounceBOffset;
+    }
 
     Hit bounceHit;
     if (TraceRay(ray, bounceHit))
@@ -76,18 +87,43 @@ struct PushConstants
         }
 
         float3 bounceAlbedo = SampleAlbedo(surface.uv, surface.lightmapGroup).rgb;
-        // float3 previousDiffuse = SamplePreviousDiffuse(surface.uv, surface.lightmapGroup).rgb;
-        // float3 current = previousDiffuse * bounceAlbedo;
-        // color.rgb += current;
-        // dominantDirection.xyz += ray.D * Luminance(current);
+        uint compactIndex = GetCompactedIndex(surface.uv, surface.lightmapGroup);
+        if (compactIndex != uint::maxValue)
+        {
+            float3 previousDiffuse = float3(CompactedLightmap[(previousOffset + compactIndex) * 3 + 0],
+                                            CompactedLightmap[(previousOffset + compactIndex) * 3 + 1],
+                                            CompactedLightmap[(previousOffset + compactIndex) * 3 + 2]);
+
+            float3 current = previousDiffuse * bounceAlbedo;
+            color.rgb += current;
+            dominantDirection.xyz += ray.D * Luminance(current);
+        }
     }
 
-    float4 previous = LightmapDiffuse[coords];
-    color.a = previous.a;
-    AccumulateColor(previous, sampleIndex, color);
-    LightmapDiffuse[coords] = previous;
+    float4 previous = float4(
+        CompactedLightmap[index * 3 + 0],
+        CompactedLightmap[index * 3 + 1],
+        CompactedLightmap[index * 3 + 2],
+        1.0);
 
-    // DominantDirection[index + 0] += dominantDirection.x;
-    // DominantDirection[index + 1] += dominantDirection.y;
-    // DominantDirection[index + 2] += dominantDirection.z;
+    AccumulateColor(previous, sampleIndex, color);
+    CompactedLightmap[(currentOffset + index) * 3 + 0] = previous.r;
+    CompactedLightmap[(currentOffset + index) * 3 + 1] = previous.g;
+    CompactedLightmap[(currentOffset + index) * 3 + 2] = previous.b;
+
+    if (LIGHTMAP_MODE == LightmapMode::Directional)
+    {
+        uint index = index + Push.compactedCount;
+        CompactedLightmap[index * 3 + 0] += dominantDirection.x;
+        CompactedLightmap[index * 3 + 1] += dominantDirection.y;
+        CompactedLightmap[index * 3 + 2] += dominantDirection.z;
+    }
+
+    bool last = Push.sampleIndex == (Push.maxSamples - 1);
+    [branch] if (last)
+    {
+        CompactedLightmap[index * 3 + 0] += previous.r;
+        CompactedLightmap[index * 3 + 1] += previous.g;
+        CompactedLightmap[index * 3 + 2] += previous.b;
+    }
 }
