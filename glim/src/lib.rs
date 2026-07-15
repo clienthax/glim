@@ -1837,7 +1837,7 @@ fn render_lightmaps3(app: &mut Glim) {
         lights_count: app.cpu_lights.len() as u32,
     };
 
-    let groups_x = (compacted_pixels_count + 63) / 64;
+    let compacted_groups_x = (compacted_pixels_count + 63) / 64;
 
     let message = format!("Baking Direct");
 
@@ -1874,7 +1874,7 @@ fn render_lightmaps3(app: &mut Glim) {
                 &bake_direct_push_bytes,
             );
 
-            vk.cmd_dispatch(cmd, groups_x, 1, 1);
+            vk.cmd_dispatch(cmd, compacted_groups_x, 1, 1);
         };
         app.vk.end_single_use_cmd(cmd);
     }
@@ -1908,8 +1908,6 @@ fn render_lightmaps3(app: &mut Glim) {
         group_info_buffer
     };
 
-    // todo bake bounces
-
     if app.config.bounce_count > 0 {
         let mut indirect_shader = load_bake_indirect_shader(&app.vk, &app.constants);
 
@@ -1935,6 +1933,9 @@ fn render_lightmaps3(app: &mut Glim) {
 
         for bounce_index in 0..app.config.bounce_count {
             push.bounce_index = bounce_index;
+
+            let message = format!("Baking Bounce {}", bounce_index + 1);
+
             for sample_index in 0..app.config.indirect_samples {
                 push.sample_index = sample_index;
                 (log)(LogMessage::progress(&message, progress * progress_scale));
@@ -1963,13 +1964,14 @@ fn render_lightmaps3(app: &mut Glim) {
                         &push_bytes,
                     );
 
-                    vk.cmd_dispatch(cmd, groups_x, 1, 1);
+                    vk.cmd_dispatch(cmd, compacted_groups_x, 1, 1);
                 };
                 app.vk.end_single_use_cmd(cmd);
             }
         }
 
         indirect_shader.destroy(&app.vk);
+        drop(indirect_shader);
     }
 
     let mut decompact_shader = load_shader_decompact(&app.vk, &app.constants);
@@ -2159,6 +2161,9 @@ fn render_lightmaps3(app: &mut Glim) {
     decompact_shader.destroy(&app.vk);
     compacted_visibility.destroy(&app.vk);
     staging_buffer_lightmap.destroy(&app.vk);
+    drop(decompact_shader);
+    drop(compacted_visibility);
+    drop(staging_buffer_lightmap);
 
     // light probes
     if app.probes.len() > 0 {
@@ -2257,4 +2262,7 @@ fn render_lightmaps3(app: &mut Glim) {
     compacted_lightmap.destroy(&app.vk);
     compaction_buffer.destroy(&app.vk);
     group_info_buffer.destroy(&app.vk);
+    drop(compacted_lightmap);
+    drop(compaction_buffer);
+    drop(group_info_buffer);
 }

@@ -13,7 +13,7 @@ struct PushConstants
 };
 
 [shader("compute")]
-    [numthreads(8, 8, 1)] void
+    [numthreads(64, 1, 1)] void
     main(uint3 threadID : SV_DispatchThreadID)
 {
     uint index = threadID.x;
@@ -38,7 +38,8 @@ struct PushConstants
     uint pixelSeed = RNGPixelInit1D(index);
     uint3 indexing = BlueNoiseIndexing(pixelSeed, sampleIndex, sobolIndexMask, sampleCount, pattern);
 
-    uint dimension = bounceIndex + 3;
+    // uint dimension = bounceIndex + 3;
+    uint dimension = 3 + bounceIndex * 2;
     float2 xiBounce = SobolBurleySample2D(indexing.x, dimension, indexing.y, indexing.z);
 
     Ray ray;
@@ -87,7 +88,7 @@ struct PushConstants
         }
 
         float3 bounceAlbedo = SampleAlbedo(surface.uv, surface.lightmapGroup).rgb;
-        uint compactIndex = GetCompactedIndex(surface.uv, surface.lightmapGroup);
+        uint compactIndex = GetCompactedIndex(surface.uv, surface.lightmapGroup, true);
         if (compactIndex != uint::maxValue)
         {
             float3 previousDiffuse = float3(CompactedLightmap[(previousOffset + compactIndex) * 3 + 0],
@@ -101,9 +102,9 @@ struct PushConstants
     }
 
     float4 previous = float4(
-        CompactedLightmap[index * 3 + 0],
-        CompactedLightmap[index * 3 + 1],
-        CompactedLightmap[index * 3 + 2],
+        CompactedLightmap[(currentOffset + index) * 3 + 0],
+        CompactedLightmap[(currentOffset + index) * 3 + 1],
+        CompactedLightmap[(currentOffset + index) * 3 + 2],
         1.0);
 
     AccumulateColor(previous, sampleIndex, color);
