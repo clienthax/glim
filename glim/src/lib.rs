@@ -24,7 +24,6 @@ use crate::shaders::compaction_mask::{
     CompactionPushConstants, load_shader_compaction_mask, update_shader_compaction_mask,
 };
 use crate::shaders::decompact::{load_shader_decompact, update_shader_decompact};
-use crate::shaders::dilate::load_shader_dilate;
 use crate::{
     camera::Camera,
     compute_shader::{
@@ -1937,8 +1936,6 @@ fn render_lightmaps3(app: &mut Glim) {
         Some(oidn.unwrap())
     };
 
-    let mut dilate_shader = load_shader_dilate(&app.vk, &app.constants);
-
     let process_lightmap = |group_index: usize, lightmap_type: u32| {
         let group = &app.groups[group_index].settings;
 
@@ -1987,66 +1984,6 @@ fn render_lightmaps3(app: &mut Glim) {
                 (group.width * group.height * 4) as usize,
             );
 
-            // if group.dilate {
-            //     let start_time = std::time::Instant::now();
-
-            //     let dilate_push = DilatePushConstants {
-            //         width: group.width,
-            //         height: group.height,
-            //         pad0: 0,
-            //         pad1: 0,
-            //     };
-            //     let dilate_push_bytes = as_bytes(&dilate_push);
-            //     let groups_x = (group.width + 7) / 8;
-            //     let groups_y = (group.height + 7) / 8;
-
-            //     update_shader_dilate(&app.vk, &dilate_shader, staging_buffer_lightmap.buffer);
-
-            //     let vk_dev = &app.vk.device;
-            //     let shader = &dilate_shader;
-            //     let cmd = app.vk.begin_single_use_cmd();
-            //     vk_dev.cmd_bind_pipeline(cmd, vk::PipelineBindPoint::COMPUTE, shader.pipeline);
-            //     vk_dev.cmd_bind_descriptor_sets(
-            //         cmd,
-            //         vk::PipelineBindPoint::COMPUTE,
-            //         shader.pipeline_layout,
-            //         0,
-            //         &[shader.descriptor_set],
-            //         &[],
-            //     );
-            //     vk_dev.cmd_push_constants(
-            //         cmd,
-            //         shader.pipeline_layout,
-            //         vk::ShaderStageFlags::COMPUTE,
-            //         0,
-            //         &dilate_push_bytes,
-            //     );
-            //     vk_dev.cmd_dispatch(cmd, groups_x, groups_y, 1);
-            //     app.vk.end_single_use_cmd(cmd);
-
-            //     let elapsed = std::time::Instant::now()
-            //         .duration_since(start_time)
-            //         .as_secs_f32();
-            //     (log)(LogMessage::message(&format!(
-            //         "Dilation complete {}s",
-            //         elapsed
-            //     )));
-            // }
-
-            // if group.dilate {
-            //     let start_time = std::time::Instant::now();
-
-            //     inpaint(pixels, group.width, group.height, 0.0, 16);
-
-            //     let elapsed = std::time::Instant::now()
-            //         .duration_since(start_time)
-            //         .as_secs_f32();
-            //     (log)(LogMessage::message(&format!(
-            //         "Dilation complete {}s",
-            //         elapsed
-            //     )));
-            // }
-
             if group.denoise {
                 let start_time = std::time::Instant::now();
 
@@ -2071,6 +2008,27 @@ fn render_lightmaps3(app: &mut Glim) {
                 (log)(LogMessage::message(&message));
             }
 
+            // todo this doesnt handle directional alpha
+            if group.fix_seams {
+                let start_time = std::time::Instant::now();
+
+                fix_seams(
+                    pixels,
+                    group.width,
+                    group.height,
+                    &app.seams,
+                    app.config.seams_debug,
+                    group_index as u32,
+                );
+
+                let now = std::time::Instant::now();
+                let elapsed = now.duration_since(start_time).as_secs_f32();
+
+                let message = format!("Seam Fix Complete {}s", elapsed);
+                (log)(LogMessage::message(&message));
+            }
+
+            // encode directional
             if lightmap_type == 1 {
                 compaction_push.lightmap_type = 2;
                 let decompact_push_bytes = as_bytes(&compaction_push);
@@ -2098,41 +2056,6 @@ fn render_lightmaps3(app: &mut Glim) {
                 let groups_y = (group.height + 7) / 8;
                 vk.cmd_dispatch(cmd, groups_x, groups_y, 1);
                 app.vk.end_single_use_cmd(cmd);
-
-                // todo still not quite sure what order is the best
-                // if group.dilate {
-                //     let start_time = std::time::Instant::now();
-
-                //     inpaint(pixels, group.width, group.height, 0.0, 16);
-
-                //     let elapsed = std::time::Instant::now()
-                //         .duration_since(start_time)
-                //         .as_secs_f32();
-                //     (log)(LogMessage::message(&format!(
-                //         "Dilation complete {}s",
-                //         elapsed
-                //     )));
-                // }
-            }
-
-            // todo this doesnt handle directional alpha
-            if group.fix_seams && lightmap_type == 0 {
-                let start_time = std::time::Instant::now();
-
-                fix_seams(
-                    pixels,
-                    group.width,
-                    group.height,
-                    &app.seams,
-                    app.config.seams_debug,
-                    group_index as u32,
-                );
-
-                let now = std::time::Instant::now();
-                let elapsed = now.duration_since(start_time).as_secs_f32();
-
-                let message = format!("Seam Fix Complete {}s", elapsed);
-                (log)(LogMessage::message(&message));
             }
 
             let readback_data = LightmapReadbackData {
@@ -2159,7 +2082,6 @@ fn render_lightmaps3(app: &mut Glim) {
         }
     }
 
-    dilate_shader.destroy(&app.vk);
     decompact_shader.destroy(&app.vk);
     compacted_visibility.destroy(&app.vk);
     staging_buffer_lightmap.destroy(&app.vk);

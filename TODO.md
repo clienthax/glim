@@ -2,7 +2,6 @@
 
 ## Priority
 - [ ] Include OIDN dlls
-- [ ] Fix directional lightmap import settings
 
 ## Features
 - [ ] Higher resolution alpha
@@ -23,7 +22,7 @@
 - [ ] Bake sky reflection probe
 - [ ] Per chart UV Packing
 - [ ] Light Probes/Volumes are noisy with direct light from small emissives
-  - [ ] Maybe denoise or do MIS
+  - [ ] Maybe denoise light probes or do MIS
 
 ## Optimization
 - [ ] Manually build the LightingData asset
@@ -40,4 +39,3 @@
 - [ ] Bake reflection probes button starts the built-in baker if the lighting is not baked which could cause confusion
 - [ ] Fill blank texture space with lower mip levels like unity does
 - [ ] Double sided global illumination doesnt work?
-- [ ] Dilate or Denoise first? Dilation interferes with the denoiser, but seam sitching looks better when dilated first then denoised

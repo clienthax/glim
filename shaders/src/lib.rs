@@ -99,7 +99,6 @@ pub enum ShaderName {
     CompactionMask,
     CompactVisibility,
     Decompact,
-    Dilate,
 }
 
 const COMPACTION_MASK_BYTES: &[u8] =
@@ -108,14 +107,11 @@ const COMPACT_VISIBILITY_BYTES: &[u8] =
     include_bytes!(concat!(env!("OUT_DIR"), "/compact_visibility.spv"));
 const DECOMPACT_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/decompact.spv"));
 
-const DILATE_BYTES: &[u8] = include_bytes!(concat!(env!("OUT_DIR"), "/dilate.spv"));
-
 pub fn load_shader_bytes(name: ShaderName) -> Vec<u32> {
     let bytes = match name {
         ShaderName::CompactionMask => COMPACTION_MASK_BYTES,
         ShaderName::CompactVisibility => COMPACT_VISIBILITY_BYTES,
         ShaderName::Decompact => DECOMPACT_BYTES,
-        ShaderName::Dilate => DILATE_BYTES,
     };
 
     let aligned = bytes
