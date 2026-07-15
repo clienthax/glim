@@ -16,8 +16,7 @@ struct PushConstants
     uint pad2;
 };
 
-static const int DILATE_RADIUS = 16;
-static const float DILATE_SIGMA = 2.5;
+static const int DILATE_RADIUS = 8;
 
 float4 DilateLightmap(int2 coords, uint compactedOffset)
 {
@@ -51,7 +50,7 @@ float4 DilateLightmap(int2 coords, uint compactedOffset)
                 1.0);
 
             float d2 = float(dx * dx + dy * dy);
-            float weight = exp(-d2 / (2.0 * DILATE_SIGMA * DILATE_SIGMA));
+            float weight = 1.0 / (d2 * d2 + 1.0);
 
             colorSum += c * weight;
             weightSum += weight;
@@ -94,7 +93,7 @@ float3 DilateNormal(int2 coords)
             float3 c = UnpackNormalOctahedron(visiblity.w);
 
             float d2 = float(dx * dx + dy * dy);
-            float weight = exp(-d2 / (2.0 * DILATE_SIGMA * DILATE_SIGMA));
+            float weight = 1.0 / (d2 * d2 + 1.0);
 
             colorSum += c * weight;
             weightSum += weight;
