@@ -234,7 +234,7 @@ pub fn find_seams(
 //     pixels: &mut [f32],
 //     width: u32,
 //     height: u32,
-//     backface_threshold: f32,
+//     alpha_threshold: f32,
 //     iterations: usize,
 // ) {
 //     let w = width as usize;
@@ -247,7 +247,7 @@ pub fn find_seams(
 //             for x in 0..w {
 //                 let idx = (y * w + x) * 4;
 
-//                 if prev[idx + 3] > backface_threshold {
+//                 if prev[idx + 3] > alpha_threshold {
 //                     continue;
 //                 }
 
@@ -271,7 +271,7 @@ pub fn find_seams(
 
 //                         let nidx = (ny * w + nx) * 4;
 
-//                         let neighbor_has_data = prev[nidx + 3] > backface_threshold
+//                         let neighbor_has_data = prev[nidx + 3] > alpha_threshold
 //                             || (prev[nidx] > 0.0 || prev[nidx + 1] > 0.0 || prev[nidx + 2] > 0.0);
 
 //                         if neighbor_has_data {
@@ -281,7 +281,7 @@ pub fn find_seams(
 //                                 1.0_f32
 //                             };
 
-//                             let reliability_weight = if prev[nidx + 3] > backface_threshold {
+//                             let reliability_weight = if prev[nidx + 3] > alpha_threshold {
 //                                 1.0
 //                             } else {
 //                                 0.5
@@ -305,10 +305,6 @@ pub fn find_seams(
 //                 }
 //             }
 //         }
-//     }
-
-//     for pixel in pixels.chunks_exact_mut(4) {
-//         pixel[3] = 1.0
 //     }
 // }
 

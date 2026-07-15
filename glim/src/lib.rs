@@ -12,7 +12,7 @@ use crate::buffer::Buffer;
 use crate::compute_shader::*;
 use crate::graphics_shader::update_visibility_shader;
 use crate::lights::light_buffer_flags;
-use crate::seams::{Seam, fix_seams};
+use crate::seams::{Seam, fix_seams, inpaint};
 use crate::sh::SHProbeL2;
 use crate::shaders::bake_direct::{
     BakeDirectPushConstants, load_bake_direct_shader, update_bake_direct_shader,
@@ -1346,7 +1346,7 @@ fn render_lightmaps3(app: &mut Glim) {
             compacted_count: 0,
             lightmap_type: 0,
             group_index: group_index as u32,
-            pad1: 0,
+            dilate: 0,
             pad2: 0,
         };
         let compaction_push_bytes = as_bytes(&compaction_push);
@@ -1603,7 +1603,7 @@ fn render_lightmaps3(app: &mut Glim) {
             compacted_count: compacted_pixels_count,
             lightmap_type: 0,
             group_index: group_index as u32,
-            pad1: 0,
+            dilate: 0,
             pad2: 0,
         };
         let compaction_push_bytes = as_bytes(&compaction_push);
@@ -1915,7 +1915,7 @@ fn render_lightmaps3(app: &mut Glim) {
             compacted_count: compacted_pixels_count,
             lightmap_type: lightmap_type,
             group_index: group_index as u32,
-            pad1: 0,
+            dilate: group.dilate as u32,
             pad2: 0,
         };
         let decompact_push_bytes = as_bytes(&compaction_push);
@@ -1953,51 +1953,65 @@ fn render_lightmaps3(app: &mut Glim) {
                 (group.width * group.height * 4) as usize,
             );
 
-            if group.dilate {
-                let start_time = std::time::Instant::now();
+            // if group.dilate {
+            //     let start_time = std::time::Instant::now();
 
-                let dilate_push = DilatePushConstants {
-                    width: group.width,
-                    height: group.height,
-                    pad0: 0,
-                    pad1: 0,
-                };
-                let dilate_push_bytes = as_bytes(&dilate_push);
-                let groups_x = (group.width + 7) / 8;
-                let groups_y = (group.height + 7) / 8;
+            //     let dilate_push = DilatePushConstants {
+            //         width: group.width,
+            //         height: group.height,
+            //         pad0: 0,
+            //         pad1: 0,
+            //     };
+            //     let dilate_push_bytes = as_bytes(&dilate_push);
+            //     let groups_x = (group.width + 7) / 8;
+            //     let groups_y = (group.height + 7) / 8;
 
-                update_shader_dilate(&app.vk, &dilate_shader, staging_buffer_lightmap.buffer);
+            //     update_shader_dilate(&app.vk, &dilate_shader, staging_buffer_lightmap.buffer);
 
-                let vk_dev = &app.vk.device;
-                let shader = &dilate_shader;
-                let cmd = app.vk.begin_single_use_cmd();
-                vk_dev.cmd_bind_pipeline(cmd, vk::PipelineBindPoint::COMPUTE, shader.pipeline);
-                vk_dev.cmd_bind_descriptor_sets(
-                    cmd,
-                    vk::PipelineBindPoint::COMPUTE,
-                    shader.pipeline_layout,
-                    0,
-                    &[shader.descriptor_set],
-                    &[],
-                );
-                vk_dev.cmd_push_constants(
-                    cmd,
-                    shader.pipeline_layout,
-                    vk::ShaderStageFlags::COMPUTE,
-                    0,
-                    &dilate_push_bytes,
-                );
-                vk_dev.cmd_dispatch(cmd, groups_x, groups_y, 1);
-                app.vk.end_single_use_cmd(cmd);
+            //     let vk_dev = &app.vk.device;
+            //     let shader = &dilate_shader;
+            //     let cmd = app.vk.begin_single_use_cmd();
+            //     vk_dev.cmd_bind_pipeline(cmd, vk::PipelineBindPoint::COMPUTE, shader.pipeline);
+            //     vk_dev.cmd_bind_descriptor_sets(
+            //         cmd,
+            //         vk::PipelineBindPoint::COMPUTE,
+            //         shader.pipeline_layout,
+            //         0,
+            //         &[shader.descriptor_set],
+            //         &[],
+            //     );
+            //     vk_dev.cmd_push_constants(
+            //         cmd,
+            //         shader.pipeline_layout,
+            //         vk::ShaderStageFlags::COMPUTE,
+            //         0,
+            //         &dilate_push_bytes,
+            //     );
+            //     vk_dev.cmd_dispatch(cmd, groups_x, groups_y, 1);
+            //     app.vk.end_single_use_cmd(cmd);
 
-                let elapsed = std::time::Instant::now()
-                    .duration_since(start_time)
-                    .as_secs_f32();
-                (log)(LogMessage::message(&format!(
-                    "Dilation complete {}s",
-                    elapsed
-                )));
-            }
+            //     let elapsed = std::time::Instant::now()
+            //         .duration_since(start_time)
+            //         .as_secs_f32();
+            //     (log)(LogMessage::message(&format!(
+            //         "Dilation complete {}s",
+            //         elapsed
+            //     )));
+            // }
+
+            // if group.dilate {
+            //     let start_time = std::time::Instant::now();
+
+            //     inpaint(pixels, group.width, group.height, 0.0, 16);
+
+            //     let elapsed = std::time::Instant::now()
+            //         .duration_since(start_time)
+            //         .as_secs_f32();
+            //     (log)(LogMessage::message(&format!(
+            //         "Dilation complete {}s",
+            //         elapsed
+            //     )));
+            // }
 
             if group.denoise {
                 let start_time = std::time::Instant::now();
@@ -2052,51 +2066,19 @@ fn render_lightmaps3(app: &mut Glim) {
                 app.vk.end_single_use_cmd(cmd);
 
                 // todo still not quite sure what order is the best
-                if group.dilate {
-                    let start_time = std::time::Instant::now();
+                // if group.dilate {
+                //     let start_time = std::time::Instant::now();
 
-                    let dilate_push = DilatePushConstants {
-                        width: group.width,
-                        height: group.height,
-                        pad0: 0,
-                        pad1: 0,
-                    };
-                    let dilate_push_bytes = as_bytes(&dilate_push);
-                    let groups_x = (group.width + 7) / 8;
-                    let groups_y = (group.height + 7) / 8;
+                //     inpaint(pixels, group.width, group.height, 0.0, 16);
 
-                    update_shader_dilate(&app.vk, &dilate_shader, staging_buffer_lightmap.buffer);
-
-                    let vk_dev = &app.vk.device;
-                    let shader = &dilate_shader;
-                    let cmd = app.vk.begin_single_use_cmd();
-                    vk_dev.cmd_bind_pipeline(cmd, vk::PipelineBindPoint::COMPUTE, shader.pipeline);
-                    vk_dev.cmd_bind_descriptor_sets(
-                        cmd,
-                        vk::PipelineBindPoint::COMPUTE,
-                        shader.pipeline_layout,
-                        0,
-                        &[shader.descriptor_set],
-                        &[],
-                    );
-                    vk_dev.cmd_push_constants(
-                        cmd,
-                        shader.pipeline_layout,
-                        vk::ShaderStageFlags::COMPUTE,
-                        0,
-                        &dilate_push_bytes,
-                    );
-                    vk_dev.cmd_dispatch(cmd, groups_x, groups_y, 1);
-                    app.vk.end_single_use_cmd(cmd);
-
-                    let elapsed = std::time::Instant::now()
-                        .duration_since(start_time)
-                        .as_secs_f32();
-                    (log)(LogMessage::message(&format!(
-                        "Dilation complete {}s",
-                        elapsed
-                    )));
-                }
+                //     let elapsed = std::time::Instant::now()
+                //         .duration_since(start_time)
+                //         .as_secs_f32();
+                //     (log)(LogMessage::message(&format!(
+                //         "Dilation complete {}s",
+                //         elapsed
+                //     )));
+                // }
             }
 
             if group.fix_seams {
