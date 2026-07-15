@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using UnityEditor;
+using UnityEditor.SceneManagement;
 using UnityEngine;
 using UnityEngine.Rendering;
 using UnityEngine.SceneManagement;
@@ -117,6 +118,7 @@ namespace glim
                 // so make sure to close it and reopen the scene
                 Debug.Log("Removing Bakery !ftraceLightmap GameObject");
                 GameObject.DestroyImmediate(ftraceLightmaps.gameObject);
+                EditorSceneManager.MarkSceneDirty(scene);
                 rootObjects = scene.GetRootGameObjects().Where(x => x.activeInHierarchy);
             }
 
