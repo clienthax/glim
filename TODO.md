@@ -1,9 +1,5 @@
 # Todo
 
-## Priority
-- [ ] Include OIDN dlls
-
-## Features
 - [ ] Higher resolution alpha
 - [ ] Terrain Support
 - [ ] Sky light
@@ -18,9 +14,10 @@
 - [ ] Probe occlusion
 - [ ] Emissive multiplier
 - [ ] Indirect multiplier
-- [ ] Add support for CWBVH
+- [ ] CWBVH
 - [ ] Bake sky reflection probe
 - [ ] Per chart UV Packing
+- [ ] Cancel bake button
 - [ ] Light Probes/Volumes are noisy with direct light from small emissives
   - [ ] Maybe denoise light probes or do MIS
 

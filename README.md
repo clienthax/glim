@@ -27,12 +27,13 @@ A GPU accelerated standalone lightmap baker for Unity, powered by Vulkan
 
 - Currently requires a GPU with the `VK_KHR_ray_query` extension, however it will support any GPU with a software BVH in the future. Check GPU support here `https://vulkan.gpuinfo.org/listdevices.php`, most modern GPUs should work.
 - While the lightmapper is fully working, it is still in early stages, theres room for improvement and it might lack some features
+- If you'd like to see it further improved, consider supporting on [Patreon](https://patreon.com/z3y)
 
 ### Denoiser Setup
 
 #### Windows
 
-1. Download the Windows `.zip` from `https://github.com/RenderKit/oidn/releases`
+1. Download the Windows `.zip` from [https://github.com/RenderKit/oidn/releases](https://github.com/RenderKit/oidn/releases)
 2. Extract it anywhere on your computer (e.g. `C:\oidn`)
 3. Set the `OpenImageDenoise_DIR` environment variable to that extracted folder:
    - Press **Start**, type **"environment variables"**, and open **"Edit environment variables for your account"**
