@@ -69,3 +69,22 @@ A GPU accelerated standalone lightmap baker for Unity, powered by Vulkan
 - `cargo build --release`
 - Copy the compiled dll into the `/Editor` folder
 - Alternatively you can run the `test_preview` or `test_bake` tests without Unity
+
+
+## Screenshots
+
+World Link: https://vrchat.com/home/world/wrld_6d94340a-cf41-42f9-97f9-d94667e5cba0
+
+![Lightmaps](/images/lightmaps.jpg)
+
+### Preview Window
+
+![Preview Window](/images/preview.jpg)
+
+### Lightmap
+
+![Lightmap](/images/Lightmap-0_comp_light.jpg)
+
+### Directional Lightmap
+
+![Lightmap](/images/Lightmap-0_comp_dir.jpg)

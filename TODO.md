@@ -34,4 +34,5 @@
 - [ ] Preview crashes when closing the window on linux
 - [ ] Preview window doesnt work on KDE Wayland (Fedora) in certain cases
 - [ ] Bake reflection probes button starts the built-in baker if the lighting is not baked which could cause confusion
+- [ ] Denoising can still make the seams more visible
 - [ ] Double sided global illumination doesnt work?
