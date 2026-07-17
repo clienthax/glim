@@ -6,6 +6,7 @@
 // THE SOFTWARE IS PROVIDED “AS IS”, WITHOUT WARRANTY OF ANY KIND, EXPRESS OR IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY, FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE SOFTWARE.
 
 use crate::math::*;
+use rayon::prelude::*;
 use std::collections::{HashMap, HashSet};
 use std::hash::{Hash, Hasher};
 
@@ -160,68 +161,119 @@ pub fn find_seams(
         i += 3;
     }
 
-    let edges: Vec<Edge> = edges.into_iter().collect();
+    // Canonicalise up front so `a` is a stable endpoint to hash on.
+    let edges: Vec<Edge> = edges
+        .into_iter()
+        .map(|e| {
+            if e.a > e.b {
+                Edge::new(e.b, e.a)
+            } else {
+                e
+            }
+        })
+        .collect();
 
     let reference_dir = Vector2::new(1.0, 1.0).normalize();
 
-    // todo slow
-    let mut seams = Vec::new();
-    for i in 0..edges.len() {
-        for j in (i + 1)..edges.len() {
-            let mut e0 = edges[i].clone();
-            let mut e1 = edges[j].clone();
+    // A seam requires both endpoints to be position-coincident within EPS, so only edges
+    // with an endpoint near e0.a can ever match. Bucket edges by quantised endpoint
+    // position and test just those, turning the old all-pairs scan into O(E) expected.
+    // Cell size is EPS, so two positions within EPS are never more than one cell apart on
+    // any axis and the 3x3x3 neighbourhood is an exact superset of the candidates.
+    const CELL: f32 = 0.001;
 
-            if e0.a > e0.b {
-                std::mem::swap(&mut e0.a, &mut e0.b);
-            }
-            if e1.a > e1.b {
-                std::mem::swap(&mut e1.a, &mut e1.b);
-            }
+    let cell_of = |p: Vector3| -> (i32, i32, i32) {
+        (
+            (p.x / CELL).floor() as i32,
+            (p.y / CELL).floor() as i32,
+            (p.z / CELL).floor() as i32,
+        )
+    };
 
-            let seam = is_seam(&e0, &e1);
-
-            if seam != 0 {
-                if seam == 2 {
-                    std::mem::swap(&mut e1.a, &mut e1.b);
-                }
-
-                let mut edge0_uv0 = uvs[e0.a as usize];
-                let mut edge0_uv1 = uvs[e0.b as usize];
-                let edge0_p0 = positions[e0.a as usize];
-                let edge0_p1 = positions[e0.b as usize];
-
-                let mut edge1_uv0 = uvs[e1.a as usize];
-                let mut edge1_uv1 = uvs[e1.b as usize];
-                let edge1_p0 = positions[e1.a as usize];
-                let edge1_p1 = positions[e1.b as usize];
-
-                if flip_uv_y {
-                    edge0_uv0.y = 1.0 - edge0_uv0.y;
-                    edge0_uv1.y = 1.0 - edge0_uv1.y;
-
-                    edge1_uv0.y = 1.0 - edge1_uv0.y;
-                    edge1_uv1.y = 1.0 - edge1_uv1.y;
-                }
-
-                let seam_dir = (edge0_uv0 - edge1_uv0).normalize();
-                if seam_dir.dot(reference_dir) < 0.0 {
-                    std::mem::swap(&mut edge0_uv0, &mut edge1_uv0);
-                    std::mem::swap(&mut edge0_uv1, &mut edge1_uv1);
-                }
-
-                debug_assert!(approx_eq_vec3(edge0_p0, edge1_p0));
-                debug_assert!(approx_eq_vec3(edge0_p1, edge1_p1));
-
-                seams.push(Seam {
-                    edge0_uv0,
-                    edge0_uv1,
-                    edge1_uv0,
-                    edge1_uv1,
-                    group,
-                });
-            }
+    let mut grid: HashMap<(i32, i32, i32), Vec<u32>> = HashMap::new();
+    for (index, edge) in edges.iter().enumerate() {
+        // Index both endpoints: a reversed-orientation match (is_seam == 2) pairs e1.b with e0.a.
+        for vertex in [edge.a, edge.b] {
+            grid.entry(cell_of(positions[vertex as usize]))
+                .or_default()
+                .push(index as u32);
         }
     }
+
+    let build_seam = |e0: &Edge, e1: &Edge| -> Seam {
+        let mut edge0_uv0 = uvs[e0.a as usize];
+        let mut edge0_uv1 = uvs[e0.b as usize];
+        let edge0_p0 = positions[e0.a as usize];
+        let edge0_p1 = positions[e0.b as usize];
+
+        let mut edge1_uv0 = uvs[e1.a as usize];
+        let mut edge1_uv1 = uvs[e1.b as usize];
+        let edge1_p0 = positions[e1.a as usize];
+        let edge1_p1 = positions[e1.b as usize];
+
+        if flip_uv_y {
+            edge0_uv0.y = 1.0 - edge0_uv0.y;
+            edge0_uv1.y = 1.0 - edge0_uv1.y;
+
+            edge1_uv0.y = 1.0 - edge1_uv0.y;
+            edge1_uv1.y = 1.0 - edge1_uv1.y;
+        }
+
+        let seam_dir = (edge0_uv0 - edge1_uv0).normalize();
+        if seam_dir.dot(reference_dir) < 0.0 {
+            std::mem::swap(&mut edge0_uv0, &mut edge1_uv0);
+            std::mem::swap(&mut edge0_uv1, &mut edge1_uv1);
+        }
+
+        debug_assert!(approx_eq_vec3(edge0_p0, edge1_p0));
+        debug_assert!(approx_eq_vec3(edge0_p1, edge1_p1));
+
+        Seam {
+            edge0_uv0,
+            edge0_uv1,
+            edge1_uv0,
+            edge1_uv1,
+            group,
+        }
+    };
+
+    let seams: Vec<Seam> = (0..edges.len())
+        .into_par_iter()
+        .map(|i| {
+            let e0 = &edges[i];
+            let (cx, cy, cz) = cell_of(positions[e0.a as usize]);
+
+            let mut candidates = Vec::new();
+            for dx in -1..=1 {
+                for dy in -1..=1 {
+                    for dz in -1..=1 {
+                        if let Some(bucket) = grid.get(&(cx + dx, cy + dy, cz + dz)) {
+                            // j > i keeps each unordered pair tested once, as the old scan did.
+                            candidates.extend(bucket.iter().copied().filter(|&j| j as usize > i));
+                        }
+                    }
+                }
+            }
+            // An edge is filed under both endpoints, so it can appear twice per neighbourhood.
+            candidates.sort_unstable();
+            candidates.dedup();
+
+            let mut local = Vec::new();
+            for j in candidates {
+                let mut e1 = edges[j as usize].clone();
+
+                let seam = is_seam(e0, &e1);
+                if seam != 0 {
+                    if seam == 2 {
+                        std::mem::swap(&mut e1.a, &mut e1.b);
+                    }
+                    local.push(build_seam(e0, &e1));
+                }
+            }
+            local
+        })
+        .flatten()
+        .collect();
 
     println!("found {} seams out of {} edges", seams.len(), edges.len());
 

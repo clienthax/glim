@@ -39,6 +39,7 @@ use crate::{
     mesh::{GpuMesh, Mesh, VulkanAs, create_tlas},
     oidn::Oidn,
     texture2d::Texture2D,
+    vulkan_cmd::{MAX_SAMPLES_PER_SUBMIT, SubmitPacer},
     vulkan_context::{VulkanConfig, VulkanContext},
     window::{initialize_window, update_camera},
 };
@@ -1735,15 +1736,17 @@ fn render_lightmaps3(app: &mut Glim) {
         app.config.direct_samples + app.config.indirect_samples * app.config.bounce_count;
     let progress_scale = 1.0 / progress_max as f32;
 
-    for sample_index in 0..app.config.direct_samples {
-        bake_direct_push.sample_index = sample_index;
+    let mut pacer = SubmitPacer::new(MAX_SAMPLES_PER_SUBMIT);
+    let mut sample_index = 0;
+
+    while sample_index < app.config.direct_samples {
+        let batch = pacer.chunk(app.config.direct_samples - sample_index);
         (log)(LogMessage::progress(&message, progress * progress_scale));
-        progress += 1.0;
 
         let vk = &app.vk.device;
         let shader = &bake_direct_shader;
-        let bake_direct_push_bytes = as_bytes(&bake_direct_push);
 
+        let submit_start = std::time::Instant::now();
         let cmd = app.vk.begin_single_use_cmd();
         unsafe {
             vk.cmd_bind_pipeline(cmd, vk::PipelineBindPoint::COMPUTE, shader.pipeline);
@@ -1755,17 +1758,29 @@ fn render_lightmaps3(app: &mut Glim) {
                 &[shader.descriptor_set],
                 &[],
             );
-            vk.cmd_push_constants(
-                cmd,
-                shader.pipeline_layout,
-                vk::ShaderStageFlags::COMPUTE,
-                0,
-                &bake_direct_push_bytes,
-            );
 
-            vk.cmd_dispatch(cmd, compacted_groups_x, 1, 1);
+            for offset in 0..batch {
+                bake_direct_push.sample_index = sample_index + offset;
+                vk.cmd_push_constants(
+                    cmd,
+                    shader.pipeline_layout,
+                    vk::ShaderStageFlags::COMPUTE,
+                    0,
+                    &as_bytes(&bake_direct_push),
+                );
+
+                vk.cmd_dispatch(cmd, compacted_groups_x, 1, 1);
+
+                if offset + 1 < batch {
+                    app.vk.cmd_compute_barrier(cmd);
+                }
+            }
         };
         app.vk.end_single_use_cmd(cmd);
+        pacer.record(batch, submit_start.elapsed().as_secs_f32() * 1000.0);
+
+        sample_index += batch;
+        progress += batch as f32;
     }
     bake_direct_shader.destroy(&app.vk);
 
@@ -1820,20 +1835,28 @@ fn render_lightmaps3(app: &mut Glim) {
             group_info_buffer.buffer,
         );
 
+        // Kept across bounces so it stays converged instead of re-ramping from 1 each time.
+        let mut pacer = SubmitPacer::new(MAX_SAMPLES_PER_SUBMIT);
+
         for bounce_index in 0..app.config.bounce_count {
             push.bounce_index = bounce_index;
 
             let message = format!("Baking Bounce {}", bounce_index + 1);
 
-            for sample_index in 0..app.config.indirect_samples {
-                push.sample_index = sample_index;
+            let mut sample_index = 0;
+
+            while sample_index < app.config.indirect_samples {
+                // Clamped to the bounce so bounce_index stays constant across the submit and
+                // the last-sample fold into the base lightmap keeps its own bounce.
+                let batch = pacer.chunk(app.config.indirect_samples - sample_index);
+                debug_assert!(sample_index + batch <= app.config.indirect_samples);
+
                 (log)(LogMessage::progress(&message, progress * progress_scale));
-                progress += 1.0;
 
                 let vk = &app.vk.device;
                 let shader = &indirect_shader;
-                let push_bytes = as_bytes(&push);
 
+                let submit_start = std::time::Instant::now();
                 let cmd = app.vk.begin_single_use_cmd();
                 unsafe {
                     vk.cmd_bind_pipeline(cmd, vk::PipelineBindPoint::COMPUTE, shader.pipeline);
@@ -1845,17 +1868,29 @@ fn render_lightmaps3(app: &mut Glim) {
                         &[shader.descriptor_set],
                         &[],
                     );
-                    vk.cmd_push_constants(
-                        cmd,
-                        shader.pipeline_layout,
-                        vk::ShaderStageFlags::COMPUTE,
-                        0,
-                        &push_bytes,
-                    );
 
-                    vk.cmd_dispatch(cmd, compacted_groups_x, 1, 1);
+                    for offset in 0..batch {
+                        push.sample_index = sample_index + offset;
+                        vk.cmd_push_constants(
+                            cmd,
+                            shader.pipeline_layout,
+                            vk::ShaderStageFlags::COMPUTE,
+                            0,
+                            &as_bytes(&push),
+                        );
+
+                        vk.cmd_dispatch(cmd, compacted_groups_x, 1, 1);
+
+                        if offset + 1 < batch {
+                            app.vk.cmd_compute_barrier(cmd);
+                        }
+                    }
                 };
                 app.vk.end_single_use_cmd(cmd);
+                pacer.record(batch, submit_start.elapsed().as_secs_f32() * 1000.0);
+
+                sample_index += batch;
+                progress += batch as f32;
             }
         }
 
@@ -2084,10 +2119,22 @@ fn render_lightmaps3(app: &mut Glim) {
         let groups_x = (probes_count + 63) / 64;
         let vk = &app.vk.device;
 
-        for sample_index in 0..app.config.probe_samples {
-            push.sample_index = sample_index;
-            let constants_bytes = as_bytes(&push);
+        // groups_x is tiny for typical probe counts, so cost here is nearly all submit
+        // round trip rather than GPU work. Allow deeper batching than the lightmap loops.
+        let mut pacer = SubmitPacer::new(256);
+        let mut sample_index = 0;
 
+        let message = format!("Baking Light Probes");
+        let progress_scale = 1.0 / app.config.probe_samples as f32;
+
+        while sample_index < app.config.probe_samples {
+            let batch = pacer.chunk(app.config.probe_samples - sample_index);
+            (log)(LogMessage::progress(
+                &message,
+                sample_index as f32 * progress_scale,
+            ));
+
+            let submit_start = std::time::Instant::now();
             let cmd = app.vk.begin_single_use_cmd();
             unsafe {
                 vk.cmd_bind_pipeline(cmd, vk::PipelineBindPoint::COMPUTE, shader.pipeline);
@@ -2101,17 +2148,27 @@ fn render_lightmaps3(app: &mut Glim) {
                     &[],
                 );
 
-                vk.cmd_push_constants(
-                    cmd,
-                    shader.pipeline_layout,
-                    vk::ShaderStageFlags::COMPUTE,
-                    0,
-                    &constants_bytes,
-                );
+                for offset in 0..batch {
+                    push.sample_index = sample_index + offset;
+                    vk.cmd_push_constants(
+                        cmd,
+                        shader.pipeline_layout,
+                        vk::ShaderStageFlags::COMPUTE,
+                        0,
+                        &as_bytes(&push),
+                    );
 
-                vk.cmd_dispatch(cmd, groups_x, 1, 1);
+                    vk.cmd_dispatch(cmd, groups_x, 1, 1);
+
+                    if offset + 1 < batch {
+                        app.vk.cmd_compute_barrier(cmd);
+                    }
+                }
             };
             app.vk.end_single_use_cmd(cmd);
+            pacer.record(batch, submit_start.elapsed().as_secs_f32() * 1000.0);
+
+            sample_index += batch;
         }
 
         let mut staging_buffer_light_probes = Buffer::empty(
