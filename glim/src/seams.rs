@@ -541,14 +541,7 @@ pub fn fix_seams(
         &mut guesses,
     );
 
-    let solution0 =
-        conjugate_gradient_optimize(&mut at_a, &guesses[0], &at_bs[0], iterations, tolerance);
-    let solution1 =
-        conjugate_gradient_optimize(&mut at_a, &guesses[1], &at_bs[1], iterations, tolerance);
-    let solution2 =
-        conjugate_gradient_optimize(&mut at_a, &guesses[2], &at_bs[2], iterations, tolerance);
-
-    let solutions = [solution0, solution1, solution2];
+    let solutions = conjugate_gradient_optimize3(&at_a, &guesses, &at_bs, iterations, tolerance);
 
     let width = width as i32;
 
@@ -709,6 +702,96 @@ fn setup_least_squares(
     }
 }
 
+/// Solves the three colour channels against the shared `at_a` matrix together.
+///
+/// Each channel keeps its own alpha/beta/residual and stops on its own convergence check,
+/// exactly as three separate `conjugate_gradient_optimize` calls would, so the per-channel
+/// arithmetic - and the result - is unchanged. The only difference is that the matrix is
+/// streamed once per iteration instead of once per channel per iteration.
+fn conjugate_gradient_optimize3(
+    a: &SparseMat,
+    guesses: &[VectorX; 3],
+    bs: &[VectorX; 3],
+    num_iterations: usize,
+    tolerance: f32,
+) -> [VectorX; 3] {
+    let n = guesses[0].size();
+
+    let mut x = [VectorX::new(n), VectorX::new(n), VectorX::new(n)];
+    let mut p = [VectorX::new(n), VectorX::new(n), VectorX::new(n)];
+    let mut r = [VectorX::new(n), VectorX::new(n), VectorX::new(n)];
+    let mut ap = [VectorX::new(n), VectorX::new(n), VectorX::new(n)];
+    let mut tmp = [VectorX::new(n), VectorX::new(n), VectorX::new(n)];
+
+    for c in 0..3 {
+        x[c].copy_from(&guesses[c]);
+    }
+
+    {
+        let (tmp0, rest) = tmp.split_at_mut(1);
+        let (tmp1, tmp2) = rest.split_at_mut(1);
+        SparseMat::mul3(
+            &mut tmp0[0], &mut tmp1[0], &mut tmp2[0], a, &x[0], &x[1], &x[2],
+        );
+    }
+
+    let mut rsq = [0.0f32; 3];
+    for c in 0..3 {
+        VectorX::sub(&mut r[c], &bs[c], &tmp[c]);
+        p[c].copy_from(&r[c]);
+        rsq[c] = VectorX::dot(&r[c], &r[c]);
+    }
+
+    // A channel drops out when its own convergence check fires; the loop ends once all
+    // three have. Never more matrix traversals than the slowest channel needed alone.
+    let mut active = [true; 3];
+
+    for _ in 0..num_iterations {
+        if !active.iter().any(|&a| a) {
+            break;
+        }
+
+        {
+            let (ap0, rest) = ap.split_at_mut(1);
+            let (ap1, ap2) = rest.split_at_mut(1);
+            SparseMat::mul3(
+                &mut ap0[0], &mut ap1[0], &mut ap2[0], a, &p[0], &p[1], &p[2],
+            );
+        }
+
+        for c in 0..3 {
+            if !active[c] {
+                continue;
+            }
+
+            let alpha = rsq[c] / VectorX::dot(&p[c], &ap[c]);
+
+            x[c].add_scaled(&p[c], alpha);
+            r[c].add_scaled(&ap[c], -alpha);
+
+            let rsq_new = VectorX::dot(&r[c], &r[c]);
+
+            if (rsq_new - rsq[c]).abs() < tolerance * (n as f32) {
+                // Matches the original `break`: x and r keep this iteration's update, but
+                // beta, p and rsq are left untouched.
+                active[c] = false;
+                continue;
+            }
+
+            let beta = rsq_new / rsq[c];
+            p[c].mul_add_assign(beta, &r[c]);
+            rsq[c] = rsq_new;
+        }
+    }
+
+    x
+}
+
+/// Single-channel reference solve, superseded by `conjugate_gradient_optimize3`.
+///
+/// Kept as the oracle the fused solver is tested against - if you change one, the
+/// equivalence test below will tell you whether the other still matches.
+#[allow(dead_code)]
 fn conjugate_gradient_optimize(
     a: &SparseMat,
     guess: &VectorX,
@@ -861,6 +944,43 @@ impl SparseMat {
         }
     }
 
+    /// Multiplies three vectors by the same matrix in a single traversal.
+    ///
+    /// The R/G/B solves share `a` and differ only in their vectors, so doing them together
+    /// reads each row's indices and coefficients once instead of three times. This solve is
+    /// bandwidth-bound, so that is most of the cost. The per-channel accumulation order is
+    /// identical to `mul`, so results are bit-for-bit the same.
+    pub fn mul3(
+        out0: &mut VectorX,
+        out1: &mut VectorX,
+        out2: &mut VectorX,
+        a: &SparseMat,
+        x0: &VectorX,
+        x1: &VectorX,
+        x2: &VectorX,
+    ) {
+        for r in 0..a.num_rows {
+            let row = &a.rows[r];
+
+            let mut sum0 = 0.0;
+            let mut sum1 = 0.0;
+            let mut sum2 = 0.0;
+
+            for i in 0..row.size {
+                let index = row.indices[i];
+                let coefficient = row.coefficients[i];
+
+                sum0 += x0[index] * coefficient;
+                sum1 += x1[index] * coefficient;
+                sum2 += x2[index] * coefficient;
+            }
+
+            out0[r] = sum0;
+            out1[r] = sum1;
+            out2[r] = sum2;
+        }
+    }
+
     fn dot(x: &VectorX, row: &Row) -> f32 {
         let mut sum = 0.0;
         for i in 0..row.size {
@@ -926,5 +1046,141 @@ impl std::ops::Index<usize> for VectorX {
 impl std::ops::IndexMut<usize> for VectorX {
     fn index_mut(&mut self, index: usize) -> &mut Self::Output {
         &mut self.data[index]
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn lcg(state: &mut u32) -> f32 {
+        *state = state.wrapping_mul(1664525).wrapping_add(1013904223);
+        ((*state >> 8) as f32 / 16777216.0) - 0.5
+    }
+
+    /// The fused solve must reproduce the three separate solves bit-for-bit: it only shares
+    /// the matrix traversal, it does not change any channel's arithmetic or its stopping point.
+    #[test]
+    fn multi_rhs_cg_matches_per_channel_cg() {
+        let n = 128;
+        let mut seed = 12345u32;
+
+        // Symmetric and diagonally dominant, like the least-squares normal matrix.
+        let mut a = SparseMat::new(n, n);
+        for i in 0..n {
+            a.set(i, i, 4.0 + lcg(&mut seed).abs());
+        }
+        for i in 0..n {
+            for _ in 0..4 {
+                let j = ((lcg(&mut seed).abs() * 2.0) * (n as f32 - 1.0)) as usize % n;
+                if j != i {
+                    let v = lcg(&mut seed) * 0.25;
+                    let cur = a.get(i, j);
+                    a.set(i, j, cur + v);
+                    let cur = a.get(j, i);
+                    a.set(j, i, cur + v);
+                }
+            }
+        }
+
+        let mut guesses = [VectorX::new(n), VectorX::new(n), VectorX::new(n)];
+        let mut bs = [VectorX::new(n), VectorX::new(n), VectorX::new(n)];
+        for c in 0..3 {
+            for i in 0..n {
+                guesses[c][i] = lcg(&mut seed);
+                bs[c][i] = lcg(&mut seed);
+            }
+        }
+
+        let iterations = 50;
+        let tolerance = 1e-6;
+
+        let expected = [
+            conjugate_gradient_optimize(&a, &guesses[0], &bs[0], iterations, tolerance),
+            conjugate_gradient_optimize(&a, &guesses[1], &bs[1], iterations, tolerance),
+            conjugate_gradient_optimize(&a, &guesses[2], &bs[2], iterations, tolerance),
+        ];
+
+        let actual = conjugate_gradient_optimize3(&a, &guesses, &bs, iterations, tolerance);
+
+        let mut nonzero = false;
+        for c in 0..3 {
+            for i in 0..n {
+                assert_eq!(
+                    expected[c][i].to_bits(),
+                    actual[c][i].to_bits(),
+                    "channel {c} index {i}: {} vs {}",
+                    expected[c][i],
+                    actual[c][i]
+                );
+                if actual[c][i] != 0.0 {
+                    nonzero = true;
+                }
+            }
+        }
+        // Guard against the assert above passing on all-zero / degenerate output.
+        assert!(nonzero, "solution was entirely zero - test is not exercising the solver");
+    }
+
+    /// Not a correctness test - run manually to compare solver throughput:
+    ///   cargo test -p glim --release cg_benchmark -- --ignored --nocapture
+    #[test]
+    #[ignore]
+    fn cg_benchmark() {
+        let n = 200_000;
+        let mut seed = 999u32;
+
+        let mut a = SparseMat::new(n, n);
+        for i in 0..n {
+            a.set(i, i, 4.0 + lcg(&mut seed).abs());
+        }
+        // ~4 symmetric off-diagonals per row, near the diagonal like a pixel-neighbour matrix
+        for i in 0..n {
+            for k in 1..=2 {
+                let j = (i + k) % n;
+                if j != i {
+                    let v = lcg(&mut seed) * 0.25;
+                    let cur = a.get(i, j);
+                    a.set(i, j, cur + v);
+                    let cur = a.get(j, i);
+                    a.set(j, i, cur + v);
+                }
+            }
+        }
+
+        let mut guesses = [VectorX::new(n), VectorX::new(n), VectorX::new(n)];
+        let mut bs = [VectorX::new(n), VectorX::new(n), VectorX::new(n)];
+        for c in 0..3 {
+            for i in 0..n {
+                guesses[c][i] = lcg(&mut seed);
+                bs[c][i] = lcg(&mut seed);
+            }
+        }
+
+        let iterations = 100;
+        let tolerance = 0.001;
+
+        let t = std::time::Instant::now();
+        let separate = [
+            conjugate_gradient_optimize(&a, &guesses[0], &bs[0], iterations, tolerance),
+            conjugate_gradient_optimize(&a, &guesses[1], &bs[1], iterations, tolerance),
+            conjugate_gradient_optimize(&a, &guesses[2], &bs[2], iterations, tolerance),
+        ];
+        let separate_ms = t.elapsed().as_secs_f64() * 1000.0;
+
+        let t = std::time::Instant::now();
+        let fused = conjugate_gradient_optimize3(&a, &guesses, &bs, iterations, tolerance);
+        let fused_ms = t.elapsed().as_secs_f64() * 1000.0;
+
+        for c in 0..3 {
+            for i in 0..n {
+                assert_eq!(separate[c][i].to_bits(), fused[c][i].to_bits());
+            }
+        }
+
+        println!(
+            "n={n}  separate(3x)={separate_ms:.1}ms  fused={fused_ms:.1}ms  speedup={:.2}x",
+            separate_ms / fused_ms
+        );
     }
 }
